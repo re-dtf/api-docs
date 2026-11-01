@@ -243,7 +243,7 @@ paths:
       tags: [Комментарии]
       operationId: complainAboutComment
       summary: Пожаловаться на комментарий
-      description: Список причин (`reason_id`) не снимался, в записи был `8`.
+      description: "Причины (`reason_id`): `1` спам, `2` оскорбление, `3` нарушение закона, `4` порнографический контент, `5` насилие, `6` авторские права, `7` введение в заблуждение, `8` другое, `9` политика, `10` нейроконтент. Список один на посты и комментарии."
       x-status: verified
       x-evidence: [har]
       x-checked: '2026-11-02'
@@ -407,6 +407,54 @@ paths:
                     properties:
                       items: { type: array, items: { type: object } }
                       cursor: { type: [string, 'null'] }
+        '401': { $ref: ./shared/security.yaml#/Unauthorized }
+  /v2.6/donations/donate:
+    post:
+      tags: [Комментарии]
+      operationId: donateWithComment
+      summary: Комментарий с донатом
+      description: |
+        Вместо `addComment`. Комментарий уходит в `data[...]` теми же полями, что в `addComment`
+        (`data[id]`, `data[text]`, `data[attachments]`, `data[reply_to]`, `data[nonce]` и аналитика), сумма — в `donation`.
+        Сервер отвечает ссылкой на оплату (CloudTips); комментарий появляется после оплаты.
+        Минимальная и максимальная сумма не снимались.
+      x-status: verified
+      x-evidence: [har]
+      x-checked: '2026-11-02'
+      security: [{ JWTAuthorization: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              allOf:
+                - $ref: ./shared/schemas.yaml#/ViewContext
+                - type: object
+                  required: [type, donation]
+                  properties:
+                    type: { type: string, enum: [comment] }
+                    donation: { type: integer, description: Сумма в рублях. }
+                    'data[id]': { type: integer, description: id поста. }
+                    'data[text]': { type: string }
+                    'data[attachments]': { type: string, examples: ['[]'] }
+                    'data[reply_to]': { type: integer }
+                    'data[nonce]': { type: integer }
+      responses:
+        '200':
+          description: Платёж создан.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result:
+                    type: object
+                    properties:
+                      payment_link: { type: string, format: uri }
+                      layout_id: { type: string }
+                      invoice_id: { type: string }
+                      sum: { type: string }
         '401': { $ref: ./shared/security.yaml#/Unauthorized }
 components:
   securitySchemes:
