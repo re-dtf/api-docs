@@ -160,6 +160,231 @@ paths:
                     properties:
                       entry: { $ref: ./shared/schemas.yaml#/EditorEntry }
         '401': { $ref: ./shared/security.yaml#/Unauthorized }
+  /v2.10/content/{id}/react:
+    post:
+      tags: [Посты]
+      operationId: reactToContent
+      summary: Поставить или снять реакцию на пост
+      description: |
+        `type` — номер реакции, `0` снимает свою. Отвечает актуальными счётчиками и реакцией пользователя.
+        Лайков и дизлайков у сайта больше нет, только реакции.
+      x-status: verified
+      x-evidence: [har]
+      x-checked: '2026-11-02'
+      security: [{ JWTAuthorization: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              allOf:
+                - $ref: ./shared/schemas.yaml#/ViewContext
+                - type: object
+                  required: [type]
+                  properties:
+                    type: { type: integer }
+      responses:
+        '200':
+          description: Реакции после запроса.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result: { $ref: ./shared/schemas.yaml#/Reactions }
+        '401': { $ref: ./shared/security.yaml#/Unauthorized }
+        '403': { $ref: ./shared/security.yaml#/Forbidden }
+  /v2.1/favorite:
+    post:
+      tags: [Посты]
+      operationId: addFavorite
+      summary: Добавить в закладки
+      description: Закладки бывают у постов (`type=1`) и у комментариев (`type=2`). Обратное действие — `removeFavorite`.
+      x-status: verified
+      x-evidence: [har]
+      x-checked: '2026-11-02'
+      security: [{ JWTAuthorization: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              allOf:
+                - $ref: ./shared/schemas.yaml#/ViewContext
+                - $ref: ./shared/schemas.yaml#/FavoriteRequest
+      responses:
+        '200':
+          description: Готово. `count` — сколько теперь в закладках у объекта.
+          content:
+            application/json:
+              schema: { $ref: ./shared/schemas.yaml#/FavoriteResponse }
+        '401': { $ref: ./shared/security.yaml#/Unauthorized }
+  /v2.1/unfavorite:
+    post:
+      tags: [Посты]
+      operationId: removeFavorite
+      summary: Убрать из закладок
+      x-status: verified
+      x-evidence: [har]
+      x-checked: '2026-11-02'
+      security: [{ JWTAuthorization: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              allOf:
+                - $ref: ./shared/schemas.yaml#/ViewContext
+                - $ref: ./shared/schemas.yaml#/FavoriteRequest
+      responses:
+        '200':
+          description: Готово.
+          content:
+            application/json:
+              schema: { $ref: ./shared/schemas.yaml#/FavoriteResponse }
+        '401': { $ref: ./shared/security.yaml#/Unauthorized }
+  /v2.4/content/complaint:
+    post:
+      tags: [Посты]
+      operationId: complainAboutContent
+      summary: Пожаловаться на пост
+      description: Список причин (`reason_id`) не снимался, в записи был `10`.
+      x-status: verified
+      x-evidence: [har]
+      x-checked: '2026-11-02'
+      security: [{ JWTAuthorization: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              allOf:
+                - $ref: ./shared/schemas.yaml#/ViewContext
+                - type: object
+                  required: [content_id, reason_id]
+                  properties:
+                    content_id: { type: integer }
+                    reason_id: { type: integer }
+      responses:
+        '200':
+          description: Жалоба принята.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result:
+                    type: object
+                    properties:
+                      result: { type: boolean }
+        '401': { $ref: ./shared/security.yaml#/Unauthorized }
+  /v2.10/content/{id}/reposts:
+    get:
+      tags: [Посты]
+      operationId: getReposts
+      summary: Репосты поста
+      description: |
+        Записи с полями `repostId` и `repostData` (`type: osnovaEmbed`, `data.original_id`). Как репост создаётся
+        (сохранение в редакторе), не снималось: есть только запись открытия `GET /v2.1/editor/0`.
+      x-status: verified
+      x-evidence: [har]
+      x-checked: '2026-11-02'
+      security: [{}, { JWTAuthorization: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+        - { name: markdown, in: query, schema: { type: boolean } }
+      responses:
+        '200':
+          description: Репосты.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result:
+                    type: object
+                    properties:
+                      items: { type: array, items: { type: object } }
+                      total: { type: integer }
+        '4XX': { $ref: ./shared/security.yaml#/ClientError }
+  /v2.1/stats/views:
+    post:
+      tags: [Посты]
+      operationId: sendViewStats
+      summary: Статистика просмотров
+      description: |
+        Сайт отправляет пачку показов (JSON, не форма). reDTF этот метод не использует; `hitId` и `viewId` —
+        UUID, которые сайт придумывает сам.
+      x-status: verified
+      x-evidence: [har]
+      x-checked: '2026-11-02'
+      security: [{ JWTAuthorization: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: object
+                properties:
+                  type: { type: string, examples: [content] }
+                  contentId: { type: integer }
+                  contentDisplayType: { type: string, examples: [full] }
+                  location: { type: string, examples: [post] }
+                  previousPage: { type: string }
+                  fromFeed: { type: string }
+                  hitId: { type: string }
+                  viewId: { type: string }
+      responses:
+        '200':
+          description: Принято.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result:
+                    type: object
+                    properties:
+                      sessionId: { type: string }
+        '401': { $ref: ./shared/security.yaml#/Unauthorized }
+  /v2.4/content/{id}/thread/subscribe:
+    get:
+      tags: [Посты]
+      operationId: toggleCommentsSubscription
+      summary: Подписаться на комментарии поста
+      description: |
+        Это GET, но он меняет состояние. Ответ говорит, подписка теперь включена или нет (`subscribe`).
+        Включён ли колокольчик до нажатия, в записи не видно. Вызывает ли повторный запрос отписку или
+        есть отдельный метод, не снималось: была одна запись с `subscribe: true`.
+      x-status: verified
+      x-evidence: [har]
+      x-checked: '2026-11-02'
+      security: [{ JWTAuthorization: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200':
+          description: Новое состояние подписки.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result:
+                    type: object
+                    properties:
+                      result: { type: boolean }
+                      subscribe: { type: boolean }
+        '401': { $ref: ./shared/security.yaml#/Unauthorized }
 components:
   securitySchemes:
     JWTAuthorization: { $ref: ./shared/security.yaml#/JWTAuthorization }

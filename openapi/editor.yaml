@@ -320,6 +320,33 @@ paths:
                     type: array
                     items: { $ref: ./shared/schemas.yaml#/Media }
         '401': { $ref: ./shared/security.yaml#/Unauthorized }
+  /v2.10/new/posts/drafts:
+    get:
+      tags: [Редактор]
+      operationId: getDrafts
+      summary: Мои черновики
+      description: "Элементы того же вида, что в ленте (`type: entry`, запись в `data`), с `isPublished: false`."
+      x-status: verified
+      x-evidence: [har]
+      x-checked: '2026-11-02'
+      parameters:
+        - { name: markdown, in: query, schema: { type: boolean } }
+        - { name: offset, in: query, schema: { type: integer, default: 0 } }
+        - { name: limit, in: query, schema: { type: integer, examples: [20] } }
+      responses:
+        '200':
+          description: Черновики, постраничность через `offset`.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result:
+                    type: object
+                    properties:
+                      items: { type: array, items: { type: object } }
+        '401': { $ref: ./shared/security.yaml#/Unauthorized }
 components:
   securitySchemes:
     JWTAuthorization: { $ref: ./shared/security.yaml#/JWTAuthorization }

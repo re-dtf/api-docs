@@ -68,10 +68,10 @@ paths:
       operationId: reactToComment
       summary: Поставить реакцию на комментарий
       description: |
-        `type` — номер реакции. Сайт дополнительно шлёт `location`, `previousPage`, `fromFeed`,
-        `hitId` (аналитика); reDTF отправляет только `type`.
+        `type` — номер реакции, `0` снимает свою. Сайт дополнительно шлёт `location`, `previousPage`,
+        `fromFeed`, `hitId` (аналитика); reDTF отправляет только `type`.
 
-        Заблокированному пользователю отвечает 403 `USER_BANNED`. Как снять реакцию — не снималось.
+        Заблокированному пользователю отвечает 403 `USER_BANNED`.
       x-status: verified
       x-evidence: [app, har]
       x-checked: '2026-11-02'
@@ -93,7 +93,14 @@ paths:
                 hitId: { type: string }
       responses:
         '200':
-          description: Реакция принята. Тело в HAR не снято (успешной записи не было).
+          description: Реакции комментария после запроса.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result: { $ref: ./shared/schemas.yaml#/Reactions }
         '401': { $ref: ./shared/security.yaml#/Unauthorized }
         '403': { $ref: ./shared/security.yaml#/Forbidden }
   /v2.1/comment/banned/{id}:
@@ -120,6 +127,286 @@ paths:
                 properties:
                   message: { type: string }
                   result: { $ref: ./shared/schemas.yaml#/Comment }
+        '401': { $ref: ./shared/security.yaml#/Unauthorized }
+  /v2.4/comment/add:
+    post:
+      tags: [Комментарии]
+      operationId: addComment
+      summary: Написать комментарий
+      description: |
+        Возвращает созданный комментарий целиком (с `textMd`, `etcControls`, `nonce`). Для ответа в `reply_to` кладут
+        id комментария, для корневого — `0`. `nonce` — случайное число, сервер возвращает его обратно.
+        `attachments` — JSON-массив вложений в виде строки, без вложений — `[]`. Вложение — тот же объект,
+        что приходит в `media` комментария: `{ type: image|movie, data: { uuid, width, height, size, type, color,
+        hash, external_service, base64preview, isVideo, duration, has_audio } }`. `uuid` берут из ответа загрузчика
+        (`uploadMedia`) или из избранных гифок. Текст при вложении может быть пустым.
+      x-status: verified
+      x-evidence: [har]
+      x-checked: '2026-11-02'
+      security: [{ JWTAuthorization: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              allOf:
+                - $ref: ./shared/schemas.yaml#/ViewContext
+                - type: object
+                  required: [id, text, attachments, reply_to]
+                  properties:
+                    id: { type: integer, description: id поста. }
+                    text: { type: string }
+                    attachments: { type: string, examples: ['[]'] }
+                    reply_to: { type: integer }
+                    nonce: { type: integer }
+      responses:
+        '200':
+          description: Созданный комментарий.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result: { $ref: ./shared/schemas.yaml#/Comment }
+        '401': { $ref: ./shared/security.yaml#/Unauthorized }
+        '403': { $ref: ./shared/security.yaml#/Forbidden }
+  /v2.4/comment/edit:
+    post:
+      tags: [Комментарии]
+      operationId: editComment
+      summary: Изменить свой комментарий
+      description: |
+        Можно ли править комментарий, говорит `etcControls.edit` (см. `getCommentControls`). Отвечает комментарием
+        целиком, как `addComment`. Вложения нужно отправить снова (`attachments` в том же формате), иначе правка их уберёт. Удаления комментариев на сайте нет.
+      x-status: verified
+      x-evidence: [har]
+      x-checked: '2026-11-02'
+      security: [{ JWTAuthorization: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [comment_id, text, attachments]
+              properties:
+                comment_id: { type: integer }
+                text: { type: string }
+                attachments: { type: string, examples: ['[]'] }
+      responses:
+        '200':
+          description: Комментарий после правки.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result: { $ref: ./shared/schemas.yaml#/Comment }
+        '401': { $ref: ./shared/security.yaml#/Unauthorized }
+        '403': { $ref: ./shared/security.yaml#/Forbidden }
+  /v2.1/comment/etcControls:
+    get:
+      tags: [Комментарии]
+      operationId: getCommentControls
+      summary: Какие действия доступны над комментарием
+      x-status: verified
+      x-evidence: [har]
+      x-checked: '2026-11-02'
+      security: [{ JWTAuthorization: [] }]
+      parameters:
+        - { name: commentId, in: query, required: true, schema: { type: integer } }
+      responses:
+        '200':
+          description: Доступные действия.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result:
+                    type: object
+                    properties:
+                      etcControls:
+                        type: object
+                        properties:
+                          edit: { type: boolean }
+                          remove: { type: boolean }
+                          remove_thread: { type: boolean }
+                          pin_comment: { type: boolean }
+                          moderate: { type: boolean }
+        '401': { $ref: ./shared/security.yaml#/Unauthorized }
+  /v2.4/comment/complaint:
+    post:
+      tags: [Комментарии]
+      operationId: complainAboutComment
+      summary: Пожаловаться на комментарий
+      description: Список причин (`reason_id`) не снимался, в записи был `8`.
+      x-status: verified
+      x-evidence: [har]
+      x-checked: '2026-11-02'
+      security: [{ JWTAuthorization: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [comment_id, reason_id]
+              properties:
+                comment_id: { type: integer }
+                reason_id: { type: integer }
+      responses:
+        '200':
+          description: Жалоба принята.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result:
+                    type: object
+                    properties:
+                      result: { type: boolean }
+        '401': { $ref: ./shared/security.yaml#/Unauthorized }
+  /v2.5/comment/{id}/donations:
+    get:
+      tags: [Комментарии]
+      operationId: getCommentDonations
+      summary: Донаты комментарию
+      description: В записи список был пустым, вид элемента не снят.
+      x-status: verified
+      x-evidence: [har]
+      x-checked: '2026-11-02'
+      security: [{}, { JWTAuthorization: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+        - { name: page, in: query, schema: { type: integer, default: 0 } }
+        - { name: limit, in: query, schema: { type: integer, examples: [100] } }
+      responses:
+        '200':
+          description: Донаты.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result:
+                    type: object
+                    properties:
+                      donations: { type: array, items: { type: object } }
+                      cursor: { type: [string, 'null'] }
+        '4XX': { $ref: ./shared/security.yaml#/ClientError }
+  /v2.5/comments:
+    get:
+      tags: [Комментарии]
+      operationId: getSubsiteComments
+      summary: Комментарии пользователя
+      description: |
+        Вкладка «Комментарии» в профиле. Плоский список, у каждого комментария `entry` (пост), `threadId`
+        и `replyCount`. Следующая страница — по `lastId` и `lastSortingValue`; сайт при этом шлёт `page`.
+      x-status: verified
+      x-evidence: [har]
+      x-checked: '2026-11-02'
+      security: [{}, { JWTAuthorization: [] }]
+      parameters:
+        - { name: subsiteId, in: query, required: true, schema: { type: integer } }
+        - { name: sorting, in: query, schema: { type: string, enum: [new], default: new }, description: Другие значения не снимались. }
+        - { name: page, in: query, schema: { type: integer, default: 0 } }
+        - { name: lastId, in: query, schema: { type: integer } }
+        - { name: lastSortingValue, in: query, schema: { type: number } }
+      responses:
+        '200':
+          description: Комментарии, свежие сверху.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result:
+                    type: object
+                    properties:
+                      items: { type: array, items: { $ref: ./shared/schemas.yaml#/Comment } }
+                      lastId: { type: integer }
+                      lastSortingValue: { type: number }
+        '4XX': { $ref: ./shared/security.yaml#/ClientError }
+  /v2.9/favorite-gifs:
+    get:
+      tags: [Комментарии]
+      operationId: getFavoriteGifs
+      summary: Избранные гифки
+      description: |
+        Меню гифок в редакторе комментария. В `andropov` лежит готовое вложение (формат из `addComment`),
+        в `leonardoUuid` — uuid файла.
+      x-status: verified
+      x-evidence: [har]
+      x-checked: '2026-11-02'
+      security: [{ JWTAuthorization: [] }]
+      parameters:
+        - { name: page, in: query, schema: { type: integer, default: 0 } }
+        - { name: limit, in: query, schema: { type: integer, examples: [6] } }
+      responses:
+        '200':
+          description: Избранные гифки, недавно использованные первыми.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result:
+                    type: object
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            leonardoUuid: { type: string }
+                            tenorId: { type: [string, 'null'] }
+                            dateLastUsedTimestamp: { type: integer }
+                            width: { type: integer }
+                            height: { type: integer }
+                            andropov: { type: object }
+                      cursor: { type: [string, 'null'] }
+        '401': { $ref: ./shared/security.yaml#/Unauthorized }
+  /v2.1/gifs/search:
+    get:
+      tags: [Комментарии]
+      operationId: searchGifs
+      summary: Поиск гифок
+      description: |
+        У каждой гифки `id` (uuid файла на leonardo) и `media_formats` (`gif`, `tinygif`, `mp4`) с `dims`,
+        `size`, `duration`. Как найденная гифка превращается во вложение комментария, не снималось.
+        Следующая страница — по `cursor` из ответа.
+      x-status: verified
+      x-evidence: [har]
+      x-checked: '2026-11-02'
+      security: [{ JWTAuthorization: [] }]
+      parameters:
+        - { name: q, in: query, required: true, schema: { type: string } }
+        - { name: mediaFilter, in: query, schema: { type: string, examples: ['gif,tinygif,nanogif'] } }
+        - { name: limit, in: query, schema: { type: integer, examples: [18] } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Найденные гифки.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result:
+                    type: object
+                    properties:
+                      items: { type: array, items: { type: object } }
+                      cursor: { type: [string, 'null'] }
         '401': { $ref: ./shared/security.yaml#/Unauthorized }
 components:
   securitySchemes:

@@ -181,6 +181,32 @@ Likes:
       oneOf: [{ type: integer }, { type: boolean }]
     isHidden: { type: boolean }
 
+ViewContext:
+  type: object
+  description: Откуда нажали. Аналитика сайта, сервер её не требует; reDTF отправляет только то, что нужно для действия.
+  properties:
+    location: { type: string, examples: [post] }
+    previousPage: { type: string, examples: [popular] }
+    fromFeed: { type: string, examples: [popular] }
+    hitId: { type: string, description: "UUID, который сайт придумывает сам." }
+
+FavoriteRequest:
+  type: object
+  required: [id, type]
+  properties:
+    id: { type: integer, description: "id поста или комментария." }
+    type: { type: integer, enum: [1, 2], description: "`1` — пост, `2` — комментарий." }
+
+FavoriteResponse:
+  type: object
+  properties:
+    message: { type: string }
+    result:
+      type: object
+      properties:
+        success: { type: boolean }
+        count: { type: integer, description: "Сколько теперь в закладках у этого объекта." }
+
 Reactions:
   type: object
   properties:

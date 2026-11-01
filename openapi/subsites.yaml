@@ -18,12 +18,16 @@ paths:
       tags: [Профили]
       operationId: getSubsite
       security: [{}, { JWTAuthorization: [] }]
-      summary: Профиль по id
+      summary: Профиль по id или адресу
+      description: |
+        Вместо `id` можно передать `uri` (`games`, `cinema`, `gameindustry`, `gamedev`, `life`): так находят id тем.
+        Неизвестный `uri` отвечает 404. Одно из двух обязательно.
       x-status: verified
       x-evidence: [app, probe]
       x-checked: '2026-11-02'
       parameters:
-        - { name: id, in: query, required: true, schema: { type: integer } }
+        - { name: id, in: query, schema: { type: integer } }
+        - { name: uri, in: query, schema: { type: string } }
         - { name: markdown, in: query, schema: { type: boolean } }
       responses:
         '200':
@@ -209,6 +213,100 @@ paths:
                       items: { type: array, items: { type: object } }
                       nextPage: { type: [integer, 'null'] }
         '4XX': { $ref: ./shared/security.yaml#/ClientError }
+  /v2.1/subsite/subscription:
+    post:
+      tags: [Профили]
+      operationId: setSubscription
+      summary: Подписаться или отписаться
+      description: |
+        Работает и для пользователей, и для тем. `location` — откуда нажали (`post` или `subsite`),
+        для `post` сайт кладёт в `meta` JSON вида `{"postId": 1}`. Остальные поля — аналитика.
+        `isSubscribedToNotifications=true` подписывает ещё и на уведомления о новых постах.
+      x-status: verified
+      x-evidence: [har]
+      x-checked: '2026-11-02'
+      security: [{ JWTAuthorization: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              allOf:
+                - $ref: ./shared/schemas.yaml#/ViewContext
+                - type: object
+                  required: [id, action]
+                  properties:
+                    id: { type: integer, description: id пользователя или темы. }
+                    action: { type: string, enum: [subscribe, unsubscribe] }
+                    isSubscribedToNotifications: { type: boolean }
+                    meta: { type: string }
+      responses:
+        '200':
+          description: Готово.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result:
+                    type: object
+                    properties:
+                      result: { type: boolean }
+        '401': { $ref: ./shared/security.yaml#/Unauthorized }
+  /v2.1/subsite/notifications/subsite/subscribe/{id}:
+    post:
+      tags: [Профили]
+      operationId: enableSubsiteNotifications
+      summary: Включить уведомления о новых постах
+      description: Колокольчик у того, на кого уже подписан. Тело запроса пустое.
+      x-status: verified
+      x-evidence: [har]
+      x-checked: '2026-11-02'
+      security: [{ JWTAuthorization: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200':
+          description: Включено.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result:
+                    type: object
+                    properties:
+                      result: { type: boolean }
+                      subscribe: { type: boolean }
+        '401': { $ref: ./shared/security.yaml#/Unauthorized }
+  /v2.1/subsite/notifications/subsite/unsubscribe/{id}:
+    post:
+      tags: [Профили]
+      operationId: disableSubsiteNotifications
+      summary: Выключить уведомления о новых постах
+      x-status: verified
+      x-evidence: [har]
+      x-checked: '2026-11-02'
+      security: [{ JWTAuthorization: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200':
+          description: Выключено.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result:
+                    type: object
+                    properties:
+                      result: { type: boolean }
+                      subscribe: { type: boolean }
+        '401': { $ref: ./shared/security.yaml#/Unauthorized }
 components:
   securitySchemes:
     JWTAuthorization: { $ref: ./shared/security.yaml#/JWTAuthorization }

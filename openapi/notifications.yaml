@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: DTF API — уведомления
   version: 2026-11-02
-  description: Снято по HAR сайта. reDTF уведомления пока не использует.
+  description: Снято по HAR сайта. reDTF показывает их в колокольчике шапки; живьём с токеном не проверялось.
 servers:
   - url: https://api.dtf.ru
 tags:
