@@ -1,0 +1,16 @@
+# Сырые записи трафика содержат токены, куки и чужие данные
+*.har
+.har/
+
+node_modules/
+.redocly/
+dist/
+
+# Собирается командой `npm run build`
+site/bundle/
+site/docs/
+site/llms.txt
+site/llms-full.txt
+
+# Локальные настройки превью
+.claude/

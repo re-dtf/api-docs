@@ -1,0 +1,80 @@
+openapi: 3.1.0
+info:
+  title: DTF API — уведомления
+  version: 2026-11-02
+  description: Снято по HAR сайта. reDTF уведомления пока не использует.
+servers:
+  - url: https://api.dtf.ru
+tags:
+  - name: Уведомления
+    description: Уведомления пользователя.
+paths:
+  /v2.1/subsite/me/updates:
+    get:
+      tags: [Уведомления]
+      operationId: getNotifications
+      summary: Список уведомлений
+      description: |
+        Возвращает массив (в HAR около 19 штук одним ответом, без пагинации). Смысл `is_read=1`
+        не выяснен: сайт всегда шлёт его вместе с `html=true`.
+      x-status: verified
+      x-evidence: [har]
+      x-checked: '2026-11-02'
+      security: [{ JWTAuthorization: [] }]
+      parameters:
+        - name: html
+          in: query
+          schema: { type: boolean }
+          description: "`true` — добавить поле `html` со ссылками."
+        - name: is_read
+          in: query
+          schema: { type: integer, examples: [1] }
+      responses:
+        '200':
+          description: Уведомления, свежие сверху.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result: { type: array, items: { $ref: ./shared/schemas.yaml#/Notification } }
+        '401': { $ref: ./shared/security.yaml#/Unauthorized }
+  /v2.1/subsite/notifications/markAsRead:
+    post:
+      tags: [Уведомления]
+      operationId: markNotificationsRead
+      summary: Отметить прочитанными
+      x-status: verified
+      x-evidence: [har]
+      x-checked: '2026-11-02'
+      security: [{ JWTAuthorization: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [notificationIds]
+              properties:
+                notificationIds:
+                  type: string
+                  description: JSON-массив id в виде строки.
+                  examples: ['[1000000001]']
+      responses:
+        '200':
+          description: Готово.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result:
+                    type: object
+                    properties:
+                      result: { type: boolean }
+        '401': { $ref: ./shared/security.yaml#/Unauthorized }
+components:
+  securitySchemes:
+    JWTAuthorization: { $ref: ./shared/security.yaml#/JWTAuthorization }

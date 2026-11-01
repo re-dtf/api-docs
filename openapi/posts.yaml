@@ -1,0 +1,165 @@
+openapi: 3.1.0
+info:
+  title: DTF API — посты (чтение и управление)
+  version: 2026-11-02
+  description: Создание и редактирование — в `editor.yaml`.
+servers:
+  - url: https://api.dtf.ru
+tags:
+  - name: Посты
+    description: Чтение и управление постами.
+paths:
+  /v2.31/content:
+    get:
+      tags: [Посты]
+      operationId: getContent
+      security: [{}, { JWTAuthorization: [] }]
+      summary: Пост по id
+      description: |
+        Чужой неопубликованный черновик отдаётся 403 «Недостаточно прав». Для заблокированного
+        пользователя запрос проходит (200), но `commentEditor.enabled=false`.
+
+        На `/v2.10/content` ответ того же вида; так запрашивает сайт, с `markdown=false`.
+      x-status: verified
+      x-evidence: [app, probe, har]
+      x-checked: '2026-11-02'
+      parameters:
+        - name: id
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: markdown
+          in: query
+          schema: { type: boolean }
+      responses:
+        '200':
+          description: Пост.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result: { $ref: ./shared/schemas.yaml#/Entry }
+        '403': { $ref: ./shared/security.yaml#/Forbidden }
+  /v2.4/content/etcControls:
+    get:
+      tags: [Посты]
+      operationId: getContentControls
+      summary: Какие действия доступны над постом
+      x-status: verified
+      x-evidence: [har]
+      x-checked: '2026-11-02'
+      security: [{ JWTAuthorization: [] }]
+      parameters:
+        - name: id
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Доступные действия.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result:
+                    type: object
+                    properties:
+                      etcControls:
+                        type: object
+                        properties:
+                          editEntry: { type: boolean }
+                          pinContent: { type: boolean }
+                          remove: { type: boolean }
+        '401': { $ref: ./shared/security.yaml#/Unauthorized }
+  /v2.4/content/{id}:
+    delete:
+      tags: [Посты]
+      operationId: deleteContent
+      summary: Удалить пост
+      description: Работает и для опубликованных постов, и для черновиков.
+      x-status: verified
+      x-evidence: [har]
+      x-checked: '2026-11-02'
+      security: [{ JWTAuthorization: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200':
+          description: Пост удалён.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result:
+                    type: object
+                    properties:
+                      success: { type: boolean }
+        '401': { $ref: ./shared/security.yaml#/Unauthorized }
+  /v2.1/content/{id}/history:
+    get:
+      tags: [Посты]
+      operationId: getContentHistory
+      summary: История правок
+      description: Список версий, свежие сверху.
+      x-status: verified
+      x-evidence: [app, har]
+      x-checked: '2026-11-02'
+      security: [{ JWTAuthorization: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200':
+          description: Версии.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result:
+                    type: object
+                    properties:
+                      versions:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id: { type: integer }
+                            dateCreated: { type: integer }
+        '401': { $ref: ./shared/security.yaml#/Unauthorized }
+  /v2.1/content/{id}/history/{versionId}:
+    get:
+      tags: [Посты]
+      operationId: getContentVersion
+      summary: Старая версия поста
+      description: Тело `result.entry` — в формате редактора. Откат делают сохранением этой версии через `POST /v2.1/editor`.
+      x-status: verified
+      x-evidence: [app, har]
+      x-checked: '2026-11-02'
+      security: [{ JWTAuthorization: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+        - { name: versionId, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200':
+          description: Версия.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result:
+                    type: object
+                    properties:
+                      entry: { $ref: ./shared/schemas.yaml#/EditorEntry }
+        '401': { $ref: ./shared/security.yaml#/Unauthorized }
+components:
+  securitySchemes:
+    JWTAuthorization: { $ref: ./shared/security.yaml#/JWTAuthorization }

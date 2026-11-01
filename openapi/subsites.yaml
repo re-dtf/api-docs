@@ -1,0 +1,214 @@
+openapi: 3.1.0
+info:
+  title: DTF API — профили и подсайты
+  version: 2026-11-02
+  description: |
+    «Подсайт» — это и пользователь, и блог, и тема. Профиль человека — подсайт типа 1.
+
+    **Версии.** `GET /subsite` на v2.7 отдаёт профиль плоским объектом, на v2.31 — в обёртке
+    `{ role, subsite }`.
+servers:
+  - url: https://api.dtf.ru
+tags:
+  - name: Профили
+    description: Профили, подписки, биография.
+paths:
+  /v2.31/subsite:
+    get:
+      tags: [Профили]
+      operationId: getSubsite
+      security: [{}, { JWTAuthorization: [] }]
+      summary: Профиль по id
+      x-status: verified
+      x-evidence: [app, probe]
+      x-checked: '2026-11-02'
+      parameters:
+        - { name: id, in: query, required: true, schema: { type: integer } }
+        - { name: markdown, in: query, schema: { type: boolean } }
+      responses:
+        '200':
+          description: Профиль в обёртке.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result:
+                    type: object
+                    properties:
+                      role: {}
+                      subsite: { $ref: ./shared/schemas.yaml#/Subsite }
+        '4XX': { $ref: ./shared/security.yaml#/ClientError }
+  /v2.7/subsite:
+    get:
+      tags: [Профили]
+      operationId: getSubsiteFlat
+      security: [{}, { JWTAuthorization: [] }]
+      summary: Профиль по id (плоский ответ)
+      description: Так запрашивает сайт. С токеном в ответе есть личные поля (`bannedInfo`, `userHash`, `mHash` и др.).
+      x-status: verified
+      x-evidence: [har, probe]
+      x-checked: '2026-11-02'
+      parameters:
+        - { name: id, in: query, required: true, schema: { type: integer } }
+        - { name: markdown, in: query, schema: { type: boolean }, description: "`false` — `description` приходит сырым текстом." }
+      responses:
+        '200':
+          description: Профиль.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result: { $ref: ./shared/schemas.yaml#/Subsite }
+        '4XX': { $ref: ./shared/security.yaml#/ClientError }
+  /v2.31/subsite/me:
+    get:
+      tags: [Профили]
+      operationId: getMe
+      summary: Текущий пользователь
+      description: |
+        Профиль того, кто владеет токеном («кто я»). С `markdown=false` ответ — плоский объект.
+        Без токена — 401.
+
+        Форма успешного ответа взята из кода reDTF (`result.id`, `name`, `avatar`, `description`);
+        в HAR этого запроса нет.
+      x-status: verified
+      x-evidence: [app, probe]
+      x-checked: '2026-11-02'
+      security: [{ JWTAuthorization: [] }]
+      parameters:
+        - { name: markdown, in: query, schema: { type: boolean } }
+      responses:
+        '200':
+          description: Текущий профиль.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result: { $ref: ./shared/schemas.yaml#/Subsite }
+        '401': { $ref: ./shared/security.yaml#/Unauthorized }
+  /v2.1/subsite/update:
+    post:
+      tags: [Профили]
+      operationId: updateSubsite
+      summary: Изменить профиль (биография и др.)
+      description: |
+        Обновляет настройки профиля. Сайт присылает все четыре поля. reDTF сначала читает профиль и
+        возвращает в запросе текущие `name` и `commentingPermissions`, чтобы их не затереть; что
+        будет, если прислать один `description`, не проверялось. Работает и на `/v2.31/subsite/update`.
+
+        Для проверки через биографию (`bio_verification` в источниках) reDTF дописывает код в
+        `description` и позже убирает.
+      x-status: verified
+      x-evidence: [app, har]
+      x-checked: '2026-11-02'
+      security: [{ JWTAuthorization: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [subsiteId]
+              properties:
+                subsiteId: { type: integer }
+                name: { type: string }
+                description: { type: string }
+                commentingPermissions: { $ref: ./shared/schemas.yaml#/SubsiteCommentingPermissions }
+      responses:
+        '200':
+          description: Сохранённые настройки.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result:
+                    type: object
+                    properties:
+                      description: { type: string }
+                      name: { type: string }
+                      nickname: { type: [string, 'null'] }
+                      avatar: { type: string, description: uuid }
+                      cover: { type: string }
+                      commentingPermissions: { type: string }
+                      is_blur_nsfw: { type: boolean }
+                      defaultFeed: { type: integer }
+                      myFeedSorting: { type: string }
+                      hideViewedPostsFromFeeds: { type: boolean }
+        '401': { $ref: ./shared/security.yaml#/Unauthorized }
+        '422':
+          description: |
+            Не принято (например, слишком длинное описание). reDTF показывает такую ошибку как «описание слишком длинное».
+  /v2.31/subsite/subscribers:
+    get:
+      tags: [Профили]
+      operationId: getSubscribers
+      security: [{}, { JWTAuthorization: [] }]
+      summary: Подписчики
+      x-status: verified
+      x-evidence: [app, probe]
+      x-checked: '2026-11-02'
+      parameters:
+        - { name: subsiteId, in: query, required: true, schema: { type: integer } }
+      responses:
+        '200':
+          description: Подписчики. Выдача постраничная (`lastId`, `lastSortingValue`), но reDTF берёт только первую страницу.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result:
+                    type: object
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id: { type: integer }
+                            name: { type: string }
+                            avatar: { $ref: ./shared/schemas.yaml#/Media }
+                            counterSubscribers: { type: integer }
+                            isSubscribed: { type: boolean }
+                      lastId: { type: integer }
+                      lastSortingValue: { type: number }
+        '4XX': { $ref: ./shared/security.yaml#/ClientError }
+  /v2.31/subsite/subscriptions:
+    get:
+      tags: [Профили]
+      operationId: getSubscriptions
+      security: [{}, { JWTAuthorization: [] }]
+      summary: Подписки
+      description: "Постраничность через `nextPage` (в проверке был `null`). Вид элементов не снят, потому что в проверочном запросе список оказался пустым; reDTF читает `id`, `name`, `avatar`, как у подписчиков."
+      x-status: verified
+      x-evidence: [app, probe]
+      x-checked: '2026-11-02'
+      parameters:
+        - { name: subsiteId, in: query, required: true, schema: { type: integer } }
+      responses:
+        '200':
+          description: Подписки.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result:
+                    type: object
+                    properties:
+                      items: { type: array, items: { type: object } }
+                      nextPage: { type: [integer, 'null'] }
+        '4XX': { $ref: ./shared/security.yaml#/ClientError }
+components:
+  securitySchemes:
+    JWTAuthorization: { $ref: ./shared/security.yaml#/JWTAuthorization }

@@ -1,0 +1,231 @@
+openapi: 3.1.0
+info:
+  title: DTF API — ленты, новости, поиск
+  version: 2026-11-02
+  description: |
+    Чтение работает без токена; с токеном в записях появляются личные поля (`isFavorited`,
+    `commentsSeenCount`, свой голос в `likes`).
+
+    **Версии.** Один и тот же путь отвечает на нескольких версиях, и формы различаются. Для ленты
+    это существенно: `/v2.31/feed` и `/v2.1/feed` отдают курсор парой `lastId` + `lastSortingValue`,
+    `/v2.10/feed` — одной непрозрачной строкой `cursor`. reDTF использует `/v2.31`.
+servers:
+  - url: https://api.dtf.ru
+tags:
+  - name: Ленты
+    description: Ленты, новости, поиск.
+paths:
+  /v2.31/feed:
+    get:
+      tags: [Ленты]
+      operationId: getFeed
+      security: [{}, { JWTAuthorization: [] }]
+      summary: Лента
+      description: |
+        Постраничная лента. Следующая страница: `lastId` и `lastSortingValue` из прошлого ответа.
+        Значения `sorting`, кроме `hotness`, в этой спецификации не проверены.
+      x-status: verified
+      x-evidence: [app, probe]
+      x-checked: '2026-11-02'
+      parameters:
+        - name: pageName
+          in: query
+          schema: { type: string, enum: [popular, new, my], default: popular }
+          description: "`my` — моя лента, нужен токен."
+        - name: sorting
+          in: query
+          schema: { type: string, default: hotness, examples: [hotness] }
+        - name: isWithoutNews
+          in: query
+          schema: { type: boolean }
+          description: Убрать новости редакции из популярного; их отдаёт `/news`.
+        - { $ref: '#/components/parameters/lastId' }
+        - { $ref: '#/components/parameters/lastSortingValue' }
+      responses:
+        '200':
+          description: Страница ленты.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result:
+                    type: object
+                    properties:
+                      items: { type: array, items: { $ref: ./shared/schemas.yaml#/FeedItem } }
+                      lastId: { type: integer }
+                      lastSortingValue: { type: number }
+                      excludeIds: { type: array, items: { type: integer } }
+        '4XX': { $ref: ./shared/security.yaml#/ClientError }
+  /v2.10/feed:
+    get:
+      tags: [Ленты]
+      operationId: getFeedV210
+      security: [{}, { JWTAuthorization: [] }]
+      summary: Лента (версия с одним курсором)
+      description: |
+        Так ходит сайт DTF. Курсор отдаётся одной строкой `result.cursor`, без пары `lastId`/`lastSortingValue`.
+        Как передать курсор следующим запросом, в HAR не видно (там только первая страница).
+      x-status: verified
+      x-evidence: [har]
+      x-checked: '2026-11-02'
+      parameters:
+        - name: pageName
+          in: query
+          schema: { type: string, enum: [popular, new, my] }
+        - name: sorting
+          in: query
+          schema: { type: string, examples: [hotness] }
+        - name: isWithoutNews
+          in: query
+          schema: { type: boolean }
+        - name: markdown
+          in: query
+          schema: { type: boolean }
+          description: "`false` — текст блоков без markdown-обработки."
+      responses:
+        '200':
+          description: Страница ленты.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result:
+                    type: object
+                    properties:
+                      items: { type: array, items: { $ref: ./shared/schemas.yaml#/FeedItem } }
+                      cursor: { type: string }
+        '4XX': { $ref: ./shared/security.yaml#/ClientError }
+  /v2.31/news:
+    get:
+      tags: [Ленты]
+      operationId: getNews
+      security: [{}, { JWTAuthorization: [] }]
+      summary: Новости редакции
+      description: Порция новостей. Следующая — с `lastId` из прошлого ответа; первая — `lastId=0` или без параметра.
+      x-status: verified
+      x-evidence: [app, probe]
+      x-checked: '2026-11-02'
+      parameters:
+        - { $ref: '#/components/parameters/lastId' }
+      responses:
+        '200':
+          description: Новости.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result:
+                    type: object
+                    properties:
+                      news: { type: array, items: { $ref: ./shared/schemas.yaml#/FeedItem } }
+                      lastId: { type: integer }
+        '4XX': { $ref: ./shared/security.yaml#/ClientError }
+  /v2.31/news/min:
+    get:
+      tags: [Ленты]
+      operationId: getNewsMin
+      security: [{}, { JWTAuthorization: [] }]
+      summary: Пять свежих новостей
+      description: Короткий список без пагинации. Записи лежат в массиве напрямую, без обёртки `data`.
+      x-status: verified
+      x-evidence: [probe]
+      x-checked: '2026-11-02'
+      responses:
+        '200':
+          description: Массив записей.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result: { type: array, items: { $ref: ./shared/schemas.yaml#/Entry } }
+        '4XX': { $ref: ./shared/security.yaml#/ClientError }
+  /v2.31/timeline:
+    get:
+      tags: [Ленты]
+      operationId: getTimeline
+      security: [{}, { JWTAuthorization: [] }]
+      summary: Записи подсайта или пользователя
+      description: Лента одного или нескольких подсайтов (вкладки профиля).
+      x-status: verified
+      x-evidence: [app, probe]
+      x-checked: '2026-11-02'
+      parameters:
+        - name: subsitesIds
+          in: query
+          required: true
+          schema: { type: integer }
+          description: id подсайта. Несколько значений через запятую не проверялось.
+        - name: sorting
+          in: query
+          schema: { type: string, enum: [date, hotness], default: date }
+        - { $ref: '#/components/parameters/lastId' }
+        - { $ref: '#/components/parameters/lastSortingValue' }
+      responses:
+        '200':
+          description: Страница записей.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result:
+                    type: object
+                    properties:
+                      items: { type: array, items: { $ref: ./shared/schemas.yaml#/FeedItem } }
+                      lastId: { type: integer }
+                      lastSortingValue: { type: number }
+        '4XX': { $ref: ./shared/security.yaml#/ClientError }
+  /v2.31/search:
+    get:
+      tags: [Ленты]
+      operationId: search
+      security: [{}, { JWTAuthorization: [] }]
+      summary: Поиск
+      description: Отвечает 200 и возвращает `subsites`, `contents`, `lastId`. Остальные параметры и вид элементов `subsites` не изучались.
+      x-status: verified
+      x-evidence: [probe]
+      x-checked: '2026-11-02'
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Результаты.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result:
+                    type: object
+                    properties:
+                      subsites: { type: array, items: { type: object } }
+                      contents: { type: array, items: { $ref: ./shared/schemas.yaml#/FeedItem } }
+                      lastId: { type: integer }
+        '4XX': { $ref: ./shared/security.yaml#/ClientError }
+components:
+  securitySchemes:
+    JWTAuthorization: { $ref: ./shared/security.yaml#/JWTAuthorization }
+  parameters:
+    lastId:
+      name: lastId
+      in: query
+      schema: { type: integer }
+      description: "`lastId` из прошлого ответа."
+    lastSortingValue:
+      name: lastSortingValue
+      in: query
+      schema: { type: number }
+      description: "`lastSortingValue` из прошлого ответа; передаётся вместе с `lastId`."

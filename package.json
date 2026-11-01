@@ -1,0 +1,12 @@
+{
+	"name": "redtf-apidocs",
+	"private": true,
+	"type": "module",
+	"description": "Описание API DTF (OpenAPI + проза). Зависимостей нет: Redocly запускается через npx.",
+	"scripts": {
+		"lint": "node scripts/tasks.mjs lint",
+		"bundle": "node scripts/tasks.mjs bundle",
+		"llms": "node scripts/build-llms.mjs",
+		"build": "node scripts/tasks.mjs bundle && node scripts/build-llms.mjs"
+	}
+}

@@ -1,0 +1,325 @@
+openapi: 3.1.0
+info:
+  title: DTF API — редактор постов
+  version: 2026-11-02
+  description: |
+    Снято по HAR сайта и подтверждено кодом reDTF. Все вызовы требуют токен.
+
+    Жизненный цикл: `GET /editor/0` (открыть пустой) → `POST /editor` (сохранять черновик, `id: 0`
+    создаёт новый) → `POST /editor/{id}/publish`. Каждое изменение (заголовок, блок, тема, 18+)
+    сохраняется тем же `POST /editor` со всем постом целиком.
+servers:
+  - url: https://api.dtf.ru
+tags:
+  - name: Редактор
+    description: Черновики и публикация.
+  - name: Права
+    description: Права на комментарии и донаты.
+  - name: Загрузка
+    description: Загрузка файлов.
+security:
+  - JWTAuthorization: []
+paths:
+  /v2.1/editor/{id}:
+    get:
+      tags: [Редактор]
+      operationId: openEditor
+      summary: Открыть редактор
+      description: |
+        `id=0` — новый пост, иначе существующий. В `editor` — настройки: адрес статики
+        (`cdnPath`, `cdnVersion`), список разрешённых блоков (`plugins`) и права (`accessLevels`).
+        В `entry` для нового поста — только `type`, `user_id`, `subsite_id`, `currentVersionId`.
+      x-status: verified
+      x-evidence: [har]
+      x-checked: '2026-11-02'
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200':
+          description: Состояние редактора.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result:
+                    type: object
+                    properties:
+                      entry: { $ref: ./shared/schemas.yaml#/EditorEntry }
+                      editor:
+                        type: object
+                        properties:
+                          owners: { type: array, items: { type: object } }
+                          authors: { type: array, items: { type: object } }
+                          cdnPath: { type: string, format: uri }
+                          cdnVersion: { type: string }
+                          plugins:
+                            type: array
+                            items: { type: string }
+                            examples: [[paragraph, header, media, instagram, twitter, embed, quote, incut, list, link, number, quiz, audio, code, andropov, delimiter, telegram, special, person, yamusic, tiktok, spotify, osnovaEmbed]]
+                          accessLevels:
+                            type: object
+                            properties:
+                              yellow_features: { type: boolean }
+                              isAdult: { type: boolean }
+                              isPro: { type: boolean }
+                              isManagingProSubsite: { type: boolean }
+        '401': { $ref: ./shared/security.yaml#/Unauthorized }
+  /v2.1/editor:
+    post:
+      tags: [Редактор]
+      operationId: saveEntry
+      summary: Сохранить черновик
+      description: |
+        Тело — `multipart/form-data` с одним полем `entry`: JSON поста целиком. Ответ — тот же
+        пост, сервер добавляет `url`, даты и `render` в некоторые блоки.
+
+        **Публикует и этот вызов.** Если сохранить уже созданный черновик с `is_published: true`,
+        пост становится публичным (проверено 2026-11-02: после сохранения анонимный
+        `GET /content` отвечает 200, пока черновик отвечал 403; в ответе `is_published: true`). Так публикует reDTF.
+
+        Сайт DTF в снятых HAR всегда сохраняет с `is_published: false` (в том числе при смене темы
+        и пометке 18+) и публикует отдельным вызовом `POST /editor/{id}/publish`. Минимальный набор
+        полей, которого хватило, см. схему `EditorEntry`: `id`, `type`, `subsite_id`, `title`,
+        `is_published`, `is_adult`, `is_enabled_comments`, `is_enabled_likes`, `is_enabled_ad`,
+        `entry.blocks`.
+      x-status: verified
+      x-evidence: [app, har]
+      x-checked: '2026-11-02'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [entry]
+              properties:
+                entry:
+                  type: string
+                  description: JSON-строка по схеме `EditorEntry`.
+                  contentMediaType: application/json
+                  contentSchema: { $ref: ./shared/schemas.yaml#/EditorEntry }
+      responses:
+        '200':
+          description: Сохранённый пост (в `result.entry`). При ошибке `error` в теле, `message.text` — причина.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result:
+                    type: object
+                    properties:
+                      entry: { $ref: ./shared/schemas.yaml#/EditorEntry }
+        '401': { $ref: ./shared/security.yaml#/Unauthorized }
+  /v2.1/editor/{id}/publish:
+    post:
+      tags: [Редактор]
+      operationId: publishEntry
+      summary: Опубликовать
+      description: "Так публикует сайт DTF. Тела нет, отвечает пустым массивом в `result`. Пост перед этим должен быть сохранён. Самостоятельно этот вызов не проверялся: публикацию можно сделать и сохранением с `is_published: true`."
+      x-status: verified
+      x-evidence: [har]
+      x-checked: '2026-11-02'
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200':
+          description: Опубликовано.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result: { type: array, maxItems: 0 }
+        '401': { $ref: ./shared/security.yaml#/Unauthorized }
+  /v2.1/editor/subsites:
+    get:
+      tags: [Редактор]
+      operationId: getEditorSubsites
+      summary: Куда можно опубликовать
+      description: |
+        Личный блог («Без темы») и темы. Ответ — массив с одним объектом `{ items: [...] }`
+        (reDTF берёт `result[0].items`). Выбор темы — это `subsite_id` в `POST /editor`.
+      x-status: verified
+      x-evidence: [app, har]
+      x-checked: '2026-11-02'
+      responses:
+        '200':
+          description: Подсайты.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        items:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              value: { type: integer, description: id подсайта. }
+                              label: { type: string }
+                              image: { type: string, format: uri }
+                              isNoTheme: { type: boolean }
+                              additionalData:
+                                type: object
+                                properties:
+                                  url: { type: string, format: uri }
+                                  isBlog: { type: boolean }
+        '401': { $ref: ./shared/security.yaml#/Unauthorized }
+  /v2.1/posts/{id}/comment-permission:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    get:
+      tags: [Права]
+      operationId: getCommentPermission
+      summary: Кто может комментировать пост
+      x-status: verified
+      x-evidence: [app, har]
+      x-checked: '2026-11-02'
+      responses:
+        '200':
+          description: "`permission: null` — комментировать могут все."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result:
+                    type: object
+                    properties:
+                      permission: { $ref: ./shared/schemas.yaml#/PostCommentPermission }
+        '401': { $ref: ./shared/security.yaml#/Unauthorized }
+    post:
+      tags: [Права]
+      operationId: setCommentPermission
+      summary: Ограничить комментарии
+      x-status: verified
+      x-evidence: [app, har]
+      x-checked: '2026-11-02'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [commentingPermissions]
+              properties:
+                commentingPermissions:
+                  type: string
+                  enum: [nobody, only_plus, only_subscribers]
+      responses:
+        '200':
+          description: Принято.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result:
+                    type: object
+                    properties:
+                      success: { type: boolean }
+        '401': { $ref: ./shared/security.yaml#/Unauthorized }
+    delete:
+      tags: [Права]
+      operationId: resetCommentPermission
+      summary: Снять ограничение (комментировать могут все)
+      description: Значения «все» нет, ограничение снимают `DELETE` без тела.
+      x-status: verified
+      x-evidence: [app, har]
+      x-checked: '2026-11-02'
+      responses:
+        '200':
+          description: Снято.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result:
+                    type: object
+                    properties:
+                      success: { type: boolean }
+        '401': { $ref: ./shared/security.yaml#/Unauthorized }
+  /v2.5/donations/account:
+    get:
+      tags: [Права]
+      operationId: getDonationsAccount
+      summary: Данные для донатов
+      description: |
+        Редактор запрашивает при открытии, чтобы знать, можно ли включить донаты. Телефон в
+        ответе приходит открытым.
+      x-status: verified
+      x-evidence: [har]
+      x-checked: '2026-11-02'
+      responses:
+        '200':
+          description: Счёт.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result:
+                    type: object
+                    properties:
+                      phoneNumber: { type: string }
+                      isConfirmed: { type: boolean }
+                      isFrozen: { type: boolean }
+                      balance: { type: number }
+        '401': { $ref: ./shared/security.yaml#/Unauthorized }
+  /v2.8/uploader/upload:
+    post:
+      tags: [Загрузка]
+      operationId: uploadMedia
+      summary: Загрузить картинку или видео
+      description: |
+        Другой хост (`upload.dtf.ru`). Файл в поле `files`. В ответе `uuid`, который кладут в
+        блоки (`media`, `person`) и комментарии. Картинка потом доступна как
+        `https://leonardo.osnova.io/{uuid}/-/...` с трансформациями в пути.
+
+        Для видео `type` в элементе ответа — `movie` (по коду reDTF; в HAR была только картинка).
+      servers:
+        - url: https://upload.dtf.ru
+      x-status: verified
+      x-evidence: [app, har]
+      x-checked: '2026-11-02'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [files]
+              properties:
+                files: { type: string, format: binary }
+      responses:
+        '200':
+          description: Загруженный файл (всегда массив, даже для одного).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result:
+                    type: array
+                    items: { $ref: ./shared/schemas.yaml#/Media }
+        '401': { $ref: ./shared/security.yaml#/Unauthorized }
+components:
+  securitySchemes:
+    JWTAuthorization: { $ref: ./shared/security.yaml#/JWTAuthorization }

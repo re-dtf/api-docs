@@ -1,0 +1,95 @@
+openapi: 3.1.0
+info:
+  title: DTF API — вход и обновление токена
+  version: 2026-11-02
+  description: |
+    Только то, что реально используется. Подробности и открытые вопросы — в `docs/auth.md`.
+
+    **Важно:** эндпоинты `/v3.*` не отдают CORS-заголовки для чужих сайтов (проверено запросом
+    `OPTIONS` с произвольным `Origin`), поэтому из браузера на стороннем домене они доступны
+    только через прокси (в reDTF это `reDTF-proxy`). Остальные эндпоинты (`/v2.*`) отвечают на любой
+    `Origin` с `Access-Control-Allow-Credentials: true`.
+servers:
+  - url: https://api.dtf.ru
+tags:
+  - name: Сессия
+    description: Вход и обновление токена.
+paths:
+  /v3.4/auth/email/login:
+    post:
+      tags: [Сессия]
+      operationId: login
+      security: []
+      summary: Вход по почте и паролю
+      description: |
+        Возвращает пару токенов. Тело — `multipart/form-data`.
+
+        Статус: используется reDTF (через прокси). Форма успешного ответа взята из кода
+        (`json.data || json`), в виде HAR не снималась; форма ошибки проверена живым запросом.
+      x-status: verified
+      x-evidence: [app, probe]
+      x-checked: '2026-11-02'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, format: password }
+      responses:
+        '200':
+          description: Сессия. Может быть обёрнута в `data`.
+          content:
+            application/json:
+              schema: { $ref: ./shared/schemas.yaml#/Session }
+        '400':
+          description: Неверный логин или пароль.
+          content:
+            application/json:
+              schema: { $ref: ./shared/schemas.yaml#/ErrorV3 }
+              example: { message: Invalid login or password, code: 104, data: null }
+  /v3.4/auth/refresh:
+    post:
+      tags: [Сессия]
+      operationId: refreshToken
+      security: []
+      summary: Обновление access-токена
+      description: |
+        По refresh-токену выдаёт новый access-токен. Тело — `multipart/form-data`, поле `token`.
+
+        Значение refresh-токена — это кука `auth-refresh-remember` (64 hex-символа). Новые токены
+        лежат в `data` ответа, в заголовках их нет. Каждое обновление выдаёт новый refresh-токен;
+        предыдущий после этого продолжал работать (проверено однократно).
+
+        Статус: проверено живым запросом (успех и ошибка), используется reDTF (через прокси).
+      x-status: verified
+      x-evidence: [app, probe]
+      x-checked: '2026-11-02'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token: { type: string, description: Refresh-токен. }
+      responses:
+        '200':
+          description: Новая сессия в обёртке `data`.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  data: { $ref: ./shared/schemas.yaml#/Session }
+        '404':
+          description: Сессия обновления не найдена (токен неизвестен, просрочен или отозван).
+          content:
+            application/json:
+              schema: { $ref: ./shared/schemas.yaml#/ErrorV3 }
+              example: { message: Refresh session not found, code: 105, data: null }

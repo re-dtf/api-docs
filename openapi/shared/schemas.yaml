@@ -1,0 +1,372 @@
+# Общие схемы. Это не самостоятельный OpenAPI-документ: на файл ссылаются остальные спецификации
+# (`$ref: ./shared/schemas.yaml#/Entry`). Схемы описывают только поля, которые видели в ответах;
+# сервер отдаёт больше, поэтому у объектов `additionalProperties` не закрыты.
+
+# ---------- Ошибки ----------
+
+ErrorV2:
+  description: Ошибка в API v2.x (`/v2.*`). Код дублируется в HTTP-статусе.
+  type: object
+  properties:
+    message:
+      type: string
+      description: Текст для пользователя на русском (`USER_BANNED` для блокировки).
+    error:
+      type: object
+      properties:
+        code: { type: integer, examples: [403] }
+        info:
+          description: Объект с `errorCode` или пустой массив.
+          oneOf:
+            - type: object
+              properties:
+                errorCode: { type: string, examples: [USER_BANNED] }
+            - type: array
+              maxItems: 0
+
+ErrorV3:
+  description: Ошибка в API v3.x (`/v3.*`). Код здесь внутренний, не равен HTTP-статусу.
+  type: object
+  properties:
+    message: { type: string, examples: [Invalid login or password] }
+    code:
+      type: integer
+      description: "`104` — неверный логин или пароль, `105` — сессия обновления не найдена."
+    data: { type: [object, 'null'] }
+
+# ---------- Сессия ----------
+
+Session:
+  description: "Пара токенов. Ответ обновления (`/auth/refresh`) приходит как `{ message, data: Session }`; форма ответа входа по почте не снималась."
+  type: object
+  properties:
+    type: { type: string, examples: [Bearer] }
+    accessToken: { type: string, description: "JWT, живёт около 5 минут." }
+    refreshToken: { type: string, description: "Непрозрачный токен обновления, 64 hex-символа, живёт около 60 суток." }
+    accessExpTimestamp: { type: integer, description: "Unix-время, секунды." }
+    refreshExpTimestamp: { type: integer, description: "Unix-время, секунды." }
+
+# ---------- Медиа и блоки ----------
+
+MediaData:
+  type: object
+  properties:
+    uuid: { type: string, format: uuid }
+    width: { type: integer }
+    height: { type: integer }
+    size: { type: integer, description: "Байты." }
+    type: { type: string, description: Расширение, examples: [jpg, png, gif, mp4] }
+    color: { type: string, description: "Средний цвет без «#»." }
+    hash: { type: string }
+    external_service: { type: array, items: {} }
+    base64preview: { type: string, description: "Крошечный JPEG в base64." }
+    duration: { type: [number, 'null'] }
+    has_audio: { type: boolean }
+    isVideo: { type: boolean }
+
+Media:
+  type: object
+  properties:
+    type:
+      type: string
+      description: "`image` или `movie` (видео и гифки)."
+    data: { $ref: '#/MediaData' }
+
+Block:
+  description: |
+    Блок поста. Тип задаёт форму `data`. Видели в сохранённых черновиках: `text`, `header`, `media`,
+    `quote`, `delimiter`, `quiz`, `list`, `code`, `person`. В ленте встречаются ещё `game`, `osnovaEmbed`
+    и другие встраивания; редактор отдаёт список плагинов (см. `GET /v2.1/editor/0`).
+  type: object
+  required: [type, data]
+  properties:
+    type: { type: string }
+    cover: { type: boolean, description: "Блок попадает в превью поста." }
+    hidden: { type: boolean, description: "Для `text` — спойлер." }
+    anchor: { type: string, description: "Якорь для ссылки, только латиница." }
+    data: { type: object, additionalProperties: true }
+  examples:
+    - { type: text, cover: false, hidden: false, anchor: '', data: { text: '<p>Текст</p>' } }
+    - { type: header, cover: false, hidden: false, anchor: '', data: { style: h2, text: Подзаголовок } }
+    - type: media
+      cover: false
+      hidden: false
+      anchor: ''
+      data:
+        items:
+          - title: ''
+            image: { type: image, data: { uuid: 00000000-0000-0000-0000-000000000000, width: 1920, height: 1080, size: 100000, type: jpg, color: 181012 } }
+
+# ---------- Люди и подсайты ----------
+
+SubsiteShort:
+  description: Автор, подсайт, пользователь в списках. Для личного блога совпадает с автором.
+  type: object
+  properties:
+    id: { type: integer }
+    name: { type: string }
+    nickname: { type: [string, 'null'] }
+    description: { type: string }
+    uri: { type: string }
+    type: { type: integer, description: "`1` — пользователь или личный блог." }
+    subtype: { type: string, examples: [personal_blog] }
+    avatar: { $ref: '#/Media' }
+    cover: { oneOf: [{ $ref: '#/Media' }, { type: 'null' }] }
+    isSubscribed: { type: boolean }
+    isSubscribedToNewPosts: { type: boolean }
+    isMuted: { type: boolean }
+    isPlus: { type: boolean }
+    isPro: { type: boolean }
+    isVerified: { type: boolean }
+    isOnline: { type: boolean }
+    isFrozen: { type: boolean }
+    isRemovedByUserRequest: { type: boolean }
+    isUnsubscribable: { type: boolean }
+    isDonationsEnabled: { type: boolean }
+    counters:
+      type: object
+      properties:
+        subscribers: { type: integer }
+        subscriptions: { type: integer }
+  additionalProperties: true
+
+Subsite:
+  description: Полный профиль (`GET /subsite`, `GET /subsite/me`). Дополняет `SubsiteShort`.
+  allOf:
+    - $ref: '#/SubsiteShort'
+    - type: object
+      properties:
+        url: { type: string, format: uri }
+        created: { type: integer, description: "Unix-время регистрации." }
+        rating: { type: integer }
+        coverY: { type: integer, description: "Сдвиг обложки по вертикали, %." }
+        isCompany: { type: boolean }
+        isEnableWriting: { type: boolean }
+        isBanned: { type: boolean }
+        bannedInfo: { description: "Сведения о блокировке; форма не снималась." }
+        isAdult: { type: boolean }
+        isBlurNsfw: { type: boolean }
+        hideViewedPostsFromFeeds: { type: boolean }
+        defaultFeed: { type: integer }
+        myFeedSorting: { type: string, examples: [new] }
+        commentingPermissions:
+          $ref: '#/SubsiteCommentingPermissions'
+        achievements: { type: array, items: { type: object } }
+        hashtags: { type: array, items: { type: string } }
+
+SubsiteCommentingPermissions:
+  description: Кто может комментировать профиль. В профиле значение «все» называется `everybody`, у поста — иначе (см. `PostCommentPermission`).
+  type: string
+  examples: [everybody]
+
+# ---------- Посты ----------
+
+Counters:
+  type: object
+  properties:
+    comments: { type: integer }
+    favorites: { type: integer }
+    reposts: { type: integer }
+    views: { type: integer, description: "Часто 0." }
+    hits: { type: integer, description: "Часто 0." }
+    total: { type: integer, description: "Реальные просмотры." }
+
+Likes:
+  type: object
+  properties:
+    counterLikes: { type: integer }
+    counterDislikes: { type: [integer, 'null'] }
+    isLiked:
+      description: В постах число (`1`, `-1`, `0`), в комментариях boolean.
+      oneOf: [{ type: integer }, { type: boolean }]
+    isHidden: { type: boolean }
+
+Reactions:
+  type: object
+  properties:
+    counters:
+      type: array
+      items:
+        type: object
+        properties:
+          id: { type: integer, description: "Номер реакции." }
+          count: { type: integer }
+    reactionId: { type: integer, description: "Реакция текущего пользователя, `0` — нет." }
+
+Entry:
+  description: Пост, как его отдают лента, `content` и `timeline`.
+  type: object
+  properties:
+    id: { type: integer }
+    subsiteId: { type: integer }
+    date: { type: integer, description: "Unix-время публикации." }
+    dateModified: { type: integer }
+    title: { type: string }
+    blocks: { type: array, items: { $ref: '#/Block' } }
+    url: { type: string, format: uri }
+    author: { $ref: '#/SubsiteShort' }
+    subsite: { $ref: '#/SubsiteShort' }
+    counters: { $ref: '#/Counters' }
+    likes: { $ref: '#/Likes' }
+    reactions: { $ref: '#/Reactions' }
+    commentsSeenCount:
+      type: object
+      description: Сколько комментариев пользователь уже видел (нужен токен).
+    commentEditor:
+      type: object
+      description: Можно ли писать комментарии. При блокировке `enabled=false` и есть `text`, `until`, `reason`.
+      properties:
+        enabled: { type: boolean }
+        text: { type: string }
+        reason: { type: string }
+        until: { type: integer, description: "Unix-время конца блокировки." }
+    isCommentsEnabled: { type: boolean }
+    isLikesEnabled: { type: boolean }
+    isPublished: { type: boolean }
+    isEditorial: { type: boolean }
+    isNews: { type: boolean }
+    isPinned: { type: boolean }
+    isFavorited: { type: boolean }
+    isRepost: { type: boolean }
+    isGame: { type: boolean }
+    canEdit: { type: boolean }
+  additionalProperties: true
+
+FeedItem:
+  description: Элемент списка записей. В ленте и новостях запись лежит в `data`.
+  type: object
+  properties:
+    type: { type: string, examples: [entry] }
+    data: { $ref: '#/Entry' }
+    meta: { type: object }
+
+# ---------- Комментарии ----------
+
+Comment:
+  type: object
+  properties:
+    id: { type: integer }
+    author: { $ref: '#/SubsiteShort' }
+    date: { type: integer }
+    lastModificationDate: { type: integer }
+    text: { type: string, description: "HTML." }
+    level: { type: integer, description: "Глубина вложенности." }
+    replyTo: { type: integer, description: "id родительского комментария, `0` — корневой." }
+    threadId: { type: integer }
+    replyCount: { type: integer }
+    likes: { $ref: '#/Likes' }
+    reactions: { $ref: '#/Reactions' }
+    media: { type: array, items: { $ref: '#/Media' } }
+    entry:
+      type: object
+      description: Краткие сведения о посте.
+      properties:
+        id: { type: integer }
+        subsiteId: { type: integer }
+        title: { type: string }
+        subsiteName: { type: string }
+    isEdited: { type: boolean }
+    isFavorited: { type: boolean }
+    isPinned: { type: boolean }
+    isIgnored: { type: boolean }
+    isRemoved: { type: boolean }
+    isRemovedByModerator: { type: boolean }
+    isHiddenByBan: { type: boolean }
+    hiddenContent: { description: "Что скрыто при блокировке автора; форма не снималась." }
+    donation: {}
+    donations: {}
+    gifts: {}
+  additionalProperties: true
+
+# ---------- Редактор ----------
+
+PostCommentPermission:
+  description: |
+    Кто может комментировать пост. `GET` возвращает `null`, когда ограничений нет; чтобы снять
+    ограничение, шлют `DELETE`, а не значение.
+  type: [string, 'null']
+  enum: [nobody, only_plus, only_subscribers, null]
+
+EditorEntry:
+  description: Черновик или опубликованный пост в формате редактора (поля в snake_case, не как у `Entry`).
+  type: object
+  required: [id, subsite_id, title, entry]
+  properties:
+    id: { type: integer, description: "`0` — новый черновик." }
+    user_id: { type: integer }
+    type: { type: integer, description: "`1` — обычный пост." }
+    subsite_id: { type: integer, description: "Блог или тема, где лежит пост." }
+    title: { type: string }
+    entry:
+      type: object
+      properties:
+        blocks: { type: array, items: { $ref: '#/Block' } }
+    external_access_link: { type: string }
+    path: { type: string }
+    is_editorial: { type: boolean }
+    is_advertisement: { type: boolean }
+    is_enabled_comments: { type: boolean }
+    is_enabled_likes: { type: boolean }
+    withheld: { type: boolean }
+    is_enabled_ad: { type: boolean }
+    is_holdonflash: { type: boolean }
+    forced_to_mainpage: { type: integer }
+    is_holdonmain: { type: boolean }
+    is_published:
+      type: boolean
+      description: |
+        `true` в `POST /v2.1/editor` публикует пост (проверено 2026-11-02, так делает reDTF).
+        Сайт DTF в снятых HAR всегда шлёт `false` и публикует отдельным вызовом
+        `POST /v2.1/editor/{id}/publish`.
+    is_adult: { type: boolean, description: "Пометка 18+." }
+    repostId: { type: [integer, 'null'] }
+    repostData: { type: [object, 'null'] }
+    # Поля ответа, в запросе не нужны
+    url: { type: string, format: uri }
+    date: { type: integer }
+    date_str: { type: string }
+    modification_date: { type: integer }
+    modification_date_str: { type: string }
+    subsite_name: { type: string }
+  additionalProperties: true
+
+# ---------- Уведомления ----------
+
+Notification:
+  type: object
+  properties:
+    id: { type: integer }
+    group_id: { type: integer }
+    type:
+      type: integer
+      description: |
+        Битовая маска вида. Видели: `2` — реакция на комментарий, `4` — ответ на комментарий,
+        `8` — блокировка, `32` — новый комментарий в посте, `8192` — новый пост от подписки.
+    status:
+      type: integer
+      description: Видели `1` и `2`. Скорее всего `1` — не прочитано, `2` — прочитано (id, отправленный в `markAsRead`, везде имеет `2`).
+    date: { type: integer }
+    dateRFC: { type: string }
+    users:
+      type: array
+      items:
+        type: object
+        properties:
+          id: { type: integer }
+          name: { type: string }
+          avatar_url: { type: string, format: uri }
+          isSubscribedToNewPosts: { type: boolean }
+    text: { type: string, description: "Простой текст." }
+    html: { type: string, description: "Тот же текст со ссылками; приходит при `html=true`." }
+    url: { type: string, format: uri }
+    icon: { type: string, examples: [like_up, comment, reply, lock] }
+    color: { type: string, examples: [green, blue, red] }
+    imageUuid: { type: [string, 'null'] }
+    iconUuid: { type: [string, 'null'] }
+    achievement: {}
+    meta:
+      description: |
+        Для блокировки (`type=8`): `message`, `title`, `entityId` (id удалённого комментария),
+        `entityType: comment`.
+      type: [object, 'null']
+  additionalProperties: true

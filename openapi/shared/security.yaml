@@ -1,0 +1,39 @@
+# Схемы авторизации и общие ответы. Подключаются из спецификаций через `$ref`.
+
+JWTAuthorization:
+  type: apiKey
+  in: header
+  name: JWTAuthorization
+  description: |
+    `Bearer <accessToken>`. Это то, что отправляет сайт DTF и что использует reDTF. Access-токен
+    живёт около 5 минут, при 401 его обновляют (см. `docs/auth.md`).
+
+# ---------- Общие ответы ----------
+
+Unauthorized:
+  description: Нет токена или он просрочен. Вызов нужно повторить после обновления токена.
+  content:
+    application/json:
+      schema: { $ref: ./schemas.yaml#/ErrorV2 }
+      example:
+        message: Кажется у вас нет доступа к этому разделу, попробуйте раздел
+        error: { code: 401, info: [] }
+
+Forbidden:
+  description: Недостаточно прав (чужой черновик, закрытый раздел) или пользователь заблокирован.
+  content:
+    application/json:
+      schema: { $ref: ./schemas.yaml#/ErrorV2 }
+      examples:
+        noAccess:
+          summary: Нет доступа
+          value: { message: Недостаточно прав, error: { code: 403, info: { errorCode: '' } } }
+        banned:
+          summary: Пользователь заблокирован
+          value: { message: USER_BANNED, error: { code: 403, info: { errorCode: USER_BANNED } } }
+
+ClientError:
+  description: Ошибка запроса (неверные параметры, нет доступа, объект не найден). Тело в формате `ErrorV2`.
+  content:
+    application/json:
+      schema: { $ref: ./schemas.yaml#/ErrorV2 }

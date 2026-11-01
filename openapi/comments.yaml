@@ -1,0 +1,126 @@
+openapi: 3.1.0
+info:
+  title: DTF API — комментарии
+  version: 2026-11-02
+servers:
+  - url: https://api.dtf.ru
+tags:
+  - name: Комментарии
+    description: Комментарии и реакции.
+paths:
+  /v2.10/comments:
+    get:
+      tags: [Комментарии]
+      operationId: getComments
+      security: [{}, { JWTAuthorization: [] }]
+      summary: Комментарии поста
+      description: |
+        Плоский список с `level` и `replyTo`, дерево собирает клиент. На `/v2.31/comments` приходит
+        только `items` (без `editor` и `lastVisit`), поэтому reDTF и сайт используют `/v2.10`.
+
+        Закрытый пост (чужой черновик) отвечает 403 «Хорошие новости, мы не забыли проверку на права доступа».
+      x-status: verified
+      x-evidence: [app, har, probe]
+      x-checked: '2026-11-02'
+      parameters:
+        - name: contentId
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: sorting
+          in: query
+          schema: { type: string, enum: [date, popular], default: date }
+        - name: firstLoad
+          in: query
+          schema: { type: boolean }
+          description: Так делает сайт при первой загрузке; смысл не выяснялся.
+        - name: lastId
+          in: query
+          schema: { type: integer }
+        - name: lastSortingValue
+          in: query
+          schema: { type: number }
+      responses:
+        '200':
+          description: Комментарии.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result:
+                    type: object
+                    properties:
+                      items: { type: array, items: { $ref: ./shared/schemas.yaml#/Comment } }
+                      editor:
+                        type: object
+                        description: Можно ли писать комментарии.
+                        properties:
+                          enabled: { type: boolean }
+                      lastVisit: { type: [integer, 'null'] }
+                      lastId: { type: integer }
+                      lastSortingValue: { type: number }
+        '403': { $ref: ./shared/security.yaml#/Forbidden }
+  /v2.10/comment/{id}/react:
+    post:
+      tags: [Комментарии]
+      operationId: reactToComment
+      summary: Поставить реакцию на комментарий
+      description: |
+        `type` — номер реакции. Сайт дополнительно шлёт `location`, `previousPage`, `fromFeed`,
+        `hitId` (аналитика); reDTF отправляет только `type`.
+
+        Заблокированному пользователю отвечает 403 `USER_BANNED`. Как снять реакцию — не снималось.
+      x-status: verified
+      x-evidence: [app, har]
+      x-checked: '2026-11-02'
+      security: [{ JWTAuthorization: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [type]
+              properties:
+                type: { type: integer, description: Номер реакции (`1` — лайк). }
+                location: { type: string, examples: [post] }
+                previousPage: { type: string }
+                fromFeed: { type: string }
+                hitId: { type: string }
+      responses:
+        '200':
+          description: Реакция принята. Тело в HAR не снято (успешной записи не было).
+        '401': { $ref: ./shared/security.yaml#/Unauthorized }
+        '403': { $ref: ./shared/security.yaml#/Forbidden }
+  /v2.1/comment/banned/{id}:
+    get:
+      tags: [Комментарии]
+      operationId: getBannedComment
+      summary: Удалённый комментарий, из-за которого заблокировали
+      description: |
+        Адрес берётся из уведомления о блокировке: `meta.entityId` при `meta.entityType=comment`.
+        Отдаёт комментарий целиком (автор, текст, медиа, пост).
+      x-status: verified
+      x-evidence: [har]
+      x-checked: '2026-11-02'
+      security: [{ JWTAuthorization: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200':
+          description: Комментарий.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result: { $ref: ./shared/schemas.yaml#/Comment }
+        '401': { $ref: ./shared/security.yaml#/Unauthorized }
+components:
+  securitySchemes:
+    JWTAuthorization: { $ref: ./shared/security.yaml#/JWTAuthorization }

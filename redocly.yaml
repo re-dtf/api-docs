@@ -1,0 +1,6 @@
+extends:
+  - recommended
+
+rules:
+  # Лицензии у описания пока нет
+  info-license: off
