@@ -29,6 +29,8 @@ paths:
         `id=0` — новый пост, иначе существующий. В `editor` — настройки: адрес статики
         (`cdnPath`, `cdnVersion`), список разрешённых блоков (`plugins`) и права (`accessLevels`).
         В `entry` для нового поста — только `type`, `user_id`, `subsite_id`, `currentVersionId`.
+        «Сделать репост» открывает тот же `id=0`: репост у DTF теперь ответ на пост, он сохраняется как обычная
+        запись с `repostId` (см. `saveEntry`).
       x-status: verified
       x-evidence: [har]
       x-checked: '2026-11-02'

@@ -338,6 +338,10 @@ EditorEntry:
     is_holdonflash: { type: boolean }
     forced_to_mainpage: { type: integer }
     is_holdonmain: { type: boolean }
+    repostId:
+      type: [integer, 'null']
+      description: "id поста, на который написан ответ (репост у DTF теперь ответ). У ответа допустим пустой `entry.blocks`; `repostData` в запросе `null`, сервер сам подставляет в ответе карточку исходного поста (`osnovaEmbed`)."
+    repostData: { type: [object, 'null'] }
     is_published:
       type: boolean
       description: |
@@ -345,8 +349,6 @@ EditorEntry:
         Сайт DTF в снятых HAR всегда шлёт `false` и публикует отдельным вызовом
         `POST /v2.1/editor/{id}/publish`.
     is_adult: { type: boolean, description: "Пометка 18+." }
-    repostId: { type: [integer, 'null'] }
-    repostData: { type: [object, 'null'] }
     # Поля ответа, в запросе не нужны
     url: { type: string, format: uri }
     date: { type: integer }
