@@ -256,6 +256,9 @@ Entry:
     isRepost: { type: boolean }
     isGame: { type: boolean }
     canEdit: { type: boolean }
+    subscribedToTreads:
+      type: boolean
+      description: Включён ли колокольчик комментариев поста (нужен токен). Имя с опечаткой — как у API; единственный надёжный источник состояния (см. `thread/subscribe`).
   additionalProperties: true
 
 FeedItem:

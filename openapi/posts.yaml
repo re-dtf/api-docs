@@ -358,14 +358,14 @@ paths:
   /v2.4/content/{id}/thread/subscribe:
     get:
       tags: [Посты]
-      operationId: toggleCommentsSubscription
+      operationId: subscribeToComments
       summary: Подписаться на комментарии поста
       description: |
-        Это GET, но он меняет состояние. Ответ говорит, подписка теперь включена или нет (`subscribe`).
-        Включён ли колокольчик до нажатия, в записи не видно. Вызывает ли повторный запрос отписку или
-        есть отдельный метод, не снималось: была одна запись с `subscribe: true`.
+        Это GET, но он меняет состояние: включает колокольчик комментариев. Не переключатель: повторный
+        вызов оставляет подписку включённой. Отписка — `thread/unsubscribe`. Текущее состояние лежит
+        в поле `subscribedToTreads` записи (`GET /v2.4/content`).
       x-status: verified
-      x-evidence: [har]
+      x-evidence: [har, probe]
       x-checked: '2026-11-02'
       security: [{ JWTAuthorization: [] }]
       parameters:
@@ -384,6 +384,36 @@ paths:
                     properties:
                       result: { type: boolean }
                       subscribe: { type: boolean }
+        '401': { $ref: ./shared/security.yaml#/Unauthorized }
+  /v2.4/content/{id}/thread/unsubscribe:
+    get:
+      tags: [Посты]
+      operationId: unsubscribeFromComments
+      summary: Отписаться от комментариев поста
+      description: |
+        Это GET, но он меняет состояние: выключает колокольчик. `POST` на этот и предыдущий путь даёт 405.
+        **Ответу верить нельзя**: он тот же, что у подписки (`subscribe: true`), хотя подписка снимается.
+        Результат проверять по `subscribedToTreads` записи. Тот же путь отвечает и на версии `v2.1`.
+      x-status: verified
+      x-evidence: [probe]
+      x-checked: '2026-11-02'
+      security: [{ JWTAuthorization: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200':
+          description: Подписка выключена (поле `subscribe` в ответе при этом остаётся `true`).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result:
+                    type: object
+                    properties:
+                      result: { type: boolean }
+                      subscribe: { type: boolean, description: "Не отражает состояние: приходит `true` и после отписки." }
         '401': { $ref: ./shared/security.yaml#/Unauthorized }
 components:
   securitySchemes:
