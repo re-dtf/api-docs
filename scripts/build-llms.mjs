@@ -10,9 +10,10 @@ const AREAS = {
 	comments: 'Комментарии и реакции',
 	subsites: 'Профили и подписки',
 	notifications: 'Уведомления',
-	editor: 'Редактор, публикация, загрузка'
+	editor: 'Редактор, публикация, загрузка',
+	realtime: 'WebSocket и реалтайм'
 };
-const DOCS = ['auth', 'conventions', 'status'];
+const DOCS = ['auth', 'realtime', 'conventions', 'status'];
 
 const ref = (doc, node) => {
 	while (node?.$ref) node = node.$ref.replace(/^#\//, '').split('/').reduce((o, k) => o?.[k.replace(/~1/g, '/')], doc);

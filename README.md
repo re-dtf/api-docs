@@ -9,9 +9,10 @@
 | Путь | Что |
 | --- | --- |
 | [docs/auth.md](docs/auth.md) | **Авторизация**: вход, обновление, токены, CORS и прокси, блокировки, открытые вопросы |
+| [docs/realtime.md](docs/realtime.md) | **WebSocket и реалтайм**: живые комментарии, реакции, просмотры, события Socket.IO |
 | [docs/conventions.md](docs/conventions.md) | версии в путях, формат ответов и ошибок, пагинация, медиа, как читать пометки |
 | [docs/status.md](docs/status.md) | что проверено и что не описано |
-| `openapi/*.yaml` | спецификация OpenAPI 3.1 по областям: `auth`, `feed`, `posts`, `comments`, `subsites`, `notifications`, `editor` |
+| `openapi/*.yaml` | спецификация OpenAPI 3.1 по областям: `auth`, `feed`, `posts`, `comments`, `subsites`, `notifications`, `editor`, `realtime` |
 | `openapi/shared/` | общие схемы, схемы авторизации и ответы; на них ссылаются остальные файлы |
 | `SKILL.md` | вход для агентов: куда смотреть и как читать спецификацию |
 | `site/index.html` | страница для людей на Scalar: список областей, поиск, пробные запросы к публичным методам. Бандлы и сводки рядом собирает `npm run build` |

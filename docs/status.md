@@ -15,6 +15,7 @@
 | `GET /v2.10/comments`, `/v2.31/comments` | на v2.31 только `items`, без `editor` и `lastVisit` |
 | `GET /v2.31/search` | |
 | `GET /v2.31/rating` | отвечает `{ tabs, subsites }`, не изучался |
+| `wss://ws-sio.dtf.ru/socket.io` | WebSocket (Socket.IO), живые комментарии и лента, см. `realtime.md` |
 
 ## Требует токен (без него 401)
 

@@ -1,0 +1,349 @@
+openapi: 3.1.0
+info:
+  title: DTF API — WebSocket и реалтайм
+  version: 2026-11-03
+  description: |
+    Постоянное WebSocket-соединение (Socket.IO / Engine.IO v3) для получения обновлений в реальном времени:
+    комментариев, реакций, счетчиков просмотров, донатов и ленты.
+    
+    Подробный разбор протокола, жизненного цикла и клиентский код см. в `docs/realtime.md`.
+servers:
+  - url: https://ws-sio.dtf.ru
+    description: Сервер WebSocket (Socket.IO)
+security: []
+tags:
+  - name: Соединение
+    description: Установка соединения и хэндшейк.
+  - name: События комментариев
+    description: Входящие события в каналах поста.
+  - name: События ленты и постов
+    description: Входящие события общих каналов.
+paths:
+  /socket.io:
+    get:
+      tags: [Соединение]
+      operationId: wsConnect
+      summary: Подключение WebSocket (Socket.IO handshake)
+      description: |
+        Устанавливает соединение и переключает протокол на WebSocket.
+        В ответ возвращается handshake Engine.IO с идентификатором сессии `sid`,
+        после чего клиент отправляет подписки на нужные каналы через пакеты `subscribe`.
+        
+        Токены и авторизация для публичных каналов не требуются.
+      x-status: verified
+      x-evidence: [har, probe, app]
+      x-checked: '2026-11-03'
+      security: []
+      parameters:
+        - name: EIO
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: ['3']
+          description: Версия протокола Engine.IO (`3`).
+        - name: transport
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [websocket]
+          description: Транспорт (`websocket`).
+      responses:
+        '101':
+          description: Switching Protocols (успешное открытие WebSocket).
+          headers:
+            Upgrade:
+              schema: { type: string, example: websocket }
+            Connection:
+              schema: { type: string, example: Upgrade }
+        '200':
+          description: Handshake Engine.IO или ответ long-polling.
+        '400':
+          description: Неверные параметры подключения Engine.IO.
+webhooks:
+  commentCreated:
+    post:
+      tags: [События комментариев]
+      operationId: onCommentCreated
+      summary: Новый комментарий (comment_created)
+      description: |
+        Транслируется в канал `api:v2:comments-{postId}` при отправке нового комментария.
+        Содержит полный объект комментария в формате API v2.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [channel, data]
+              properties:
+                channel:
+                  type: string
+                  example: api:v2:comments-5391180
+                data:
+                  type: object
+                  required: [type, comment]
+                  properties:
+                    type:
+                      type: string
+                      enum: [comment_created]
+                    comment:
+                      $ref: ./shared/schemas.yaml#/Comment
+      responses:
+        '200':
+          description: Событие получено клиентом.
+  commentVoted:
+    post:
+      tags: [События комментариев]
+      operationId: onCommentVoted
+      summary: Реакция на комментарий (comment voted)
+      description: |
+        Транслируется в канал `api:comments-{postId}` при постановке или изменении реакции.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [channel, data]
+              properties:
+                channel:
+                  type: string
+                  example: api:comments-5391180
+                data:
+                  $ref: '#/components/schemas/CommentVotedData'
+      responses:
+        '200':
+          description: Событие получено клиентом.
+  commentEdited:
+    post:
+      tags: [События комментариев]
+      operationId: onCommentEdited
+      summary: Редактирование комментария (comment_edited)
+      description: |
+        Транслируется в канал `api:v2:comments-{postId}` при изменении текста или вложений комментария.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [channel, data]
+              properties:
+                channel:
+                  type: string
+                  example: api:v2:comments-5391180
+                data:
+                  type: object
+                  required: [type, comment]
+                  properties:
+                    type:
+                      type: string
+                      enum: [comment_edited]
+                    comment:
+                      $ref: ./shared/schemas.yaml#/Comment
+      responses:
+        '200':
+          description: Событие получено клиентом.
+  changeReplyCount:
+    post:
+      tags: [События комментариев]
+      operationId: onChangeReplyCount
+      summary: Счетчик ответов ветки (change_reply_count_for_second_level_comment)
+      description: |
+        Транслируется в канал `api:v2:comments-{postId}` для обновления бейджа свернутых ответов («ещё N ответов»).
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [channel, data]
+              properties:
+                channel:
+                  type: string
+                  example: api:v2:comments-5391180
+                data:
+                  type: object
+                  required: [type, data]
+                  properties:
+                    type:
+                      type: string
+                      enum: [change_reply_count_for_second_level_comment]
+                    data:
+                      type: object
+                      required: [comment_id, reply_count]
+                      properties:
+                        comment_id: { type: integer }
+                        reply_count: { type: integer }
+      responses:
+        '200':
+          description: Событие получено клиентом.
+  changeCommentDonation:
+    post:
+      tags: [События комментариев]
+      operationId: onChangeCommentDonation
+      summary: Донат комментарию (change_donation_amount_for_comment)
+      description: |
+        Транслируется в канал `api:v2:comments-{postId}` при донате комментарию.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [channel, data]
+              properties:
+                channel:
+                  type: string
+                  example: api:v2:comments-5391180
+                data:
+                  type: object
+                  required: [type, data]
+                  properties:
+                    type:
+                      type: string
+                      enum: [change_donation_amount_for_comment]
+                    data:
+                      type: object
+                      required: [commentId, amount]
+                      properties:
+                        commentId: { type: integer }
+                        amount: { type: integer }
+      responses:
+        '200':
+          description: Событие получено клиентом.
+  newEntryPublished:
+    post:
+      tags: [События ленты и постов]
+      operationId: onNewEntryPublished
+      summary: Новый пост в ленте (new_entry_published)
+      description: |
+        Транслируется в канал `api` при публикации новой статьи или записи.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [channel, data]
+              properties:
+                channel:
+                  type: string
+                  enum: [api]
+                data:
+                  type: object
+                  required: [type, content_id, subsite_id]
+                  properties:
+                    type:
+                      type: string
+                      enum: [new_entry_published]
+                    content_id: { type: integer }
+                    subsite_id: { type: integer }
+      responses:
+        '200':
+          description: Событие получено клиентом.
+  contentVoted:
+    post:
+      tags: [События ленты и постов]
+      operationId: onContentVoted
+      summary: Реакция на пост (content voted)
+      description: |
+        Транслируется в канал `api` при изменении голоса/реакции на посте.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [channel, data]
+              properties:
+                channel:
+                  type: string
+                  enum: [api]
+                data:
+                  type: object
+                  required: [type, content_id, reactionId, reactionCount]
+                  properties:
+                    type:
+                      type: string
+                      enum: [content voted]
+                    content_id: { type: integer }
+                    reactionId: { type: integer }
+                    fromReactionId: { type: integer }
+                    reactionCount: { type: integer }
+      responses:
+        '200':
+          description: Событие получено клиентом.
+  contentViewed:
+    post:
+      tags: [События ленты и постов]
+      operationId: onContentViewed
+      summary: Счетчик просмотров поста (content viewed)
+      description: |
+        Транслируется в канал `content-hits-mobile-{postId}` при изменении счетчика просмотров (`hitsCount`).
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [channel, data]
+              properties:
+                channel:
+                  type: string
+                  example: content-hits-mobile-5391180
+                data:
+                  type: object
+                  required: [type, content_id, value]
+                  properties:
+                    type:
+                      type: string
+                      enum: [content viewed]
+                    content_id: { type: integer }
+                    value: { type: integer, description: Новое значение счетчика просмотров }
+      responses:
+        '200':
+          description: Событие получено клиентом.
+components:
+  schemas:
+    CommentVotedData:
+      type: object
+      required: [type, content_id, id, reactionId, reactionCount, count]
+      properties:
+        type:
+          type: string
+          enum: [comment voted]
+        content_id:
+          type: integer
+          description: ID поста.
+        id:
+          type: integer
+          description: ID комментария.
+        reactionId:
+          type: integer
+          description: Код новой реакции (1 — лайк, 22 — дизлайк и др.).
+        fromReactionId:
+          type: integer
+          description: Код предыдущей реакции (0 если не было).
+        reactionCount:
+          type: integer
+          description: Актуальное число реакций данного типа.
+        count:
+          type: integer
+          description: Общее число всех реакций комментария.
+        state:
+          type: integer
+        subsite_id:
+          type: integer
+        user_hash:
+          type: integer
