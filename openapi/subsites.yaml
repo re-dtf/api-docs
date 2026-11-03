@@ -11,7 +11,7 @@ servers:
   - url: https://api.dtf.ru
 tags:
   - name: Профили
-    description: Профили, подписки, биография.
+    description: Профили, подписки, биография, настройки профиля, чёрный список.
 paths:
   /v2.31/subsite:
     get:
@@ -100,11 +100,17 @@ paths:
     post:
       tags: [Профили]
       operationId: updateSubsite
-      summary: Изменить профиль (биография и др.)
+      summary: Изменить профиль (блог, ленты, аватарка, обложка)
       description: |
-        Обновляет настройки профиля. Сайт присылает все четыре поля. reDTF сначала читает профиль и
-        возвращает в запросе текущие `name` и `commentingPermissions`, чтобы их не затереть; что
-        будет, если прислать один `description`, не проверялось. Работает и на `/v2.31/subsite/update`.
+        Один метод на все настройки профиля, сайт шлёт их группами, и достаточно полей группы:
+        - блог: `name`, `description`, `commentingPermissions` (все три сразу);
+        - ленты: `defaultFeed`, `myFeedSorting`, `isBlurNsfw`, `hideViewedPostsFromFeeds` (все четыре сразу);
+        - аватарка: `avatar` — JSON элемента из `result` ответа `uploadMedia` (`{"type":"image","data":{…}}`, как есть);
+        - обложка: `cover` — такой же JSON и `cover_y` (позиция, 0–100). Новая обложка идёт с `cover_y=0`,
+          смена позиции шлёт тот же `cover` и новый `cover_y`, удаление — `cover=null` (строка) и `cover_y=0`.
+
+        Если прислать один `description`, не проверялось, поэтому reDTF сначала читает профиль и возвращает
+        в запросе текущие `name` и `commentingPermissions`. Работает и на `/v2.31/subsite/update`.
 
         Для проверки через биографию (`bio_verification` в источниках) reDTF дописывает код в
         `description` и позже убирает.
@@ -124,6 +130,13 @@ paths:
                 name: { type: string }
                 description: { type: string }
                 commentingPermissions: { $ref: ./shared/schemas.yaml#/SubsiteCommentingPermissions }
+                defaultFeed: { type: string, examples: [popular], description: "Лента по умолчанию. Видели `popular`; остальные значения не сняты." }
+                myFeedSorting: { type: string, examples: [new], description: "Сортировка «Моей ленты». Видели `new`." }
+                isBlurNsfw: { type: boolean }
+                hideViewedPostsFromFeeds: { type: boolean }
+                avatar: { type: string, description: "JSON записи с `upload.dtf.ru`." }
+                cover: { type: string, description: "JSON записи с `upload.dtf.ru` или строка `null`, чтобы убрать." }
+                cover_y: { type: integer, minimum: 0, maximum: 100 }
       responses:
         '200':
           description: Сохранённые настройки.
@@ -150,6 +163,67 @@ paths:
         '422':
           description: |
             Не принято (например, слишком длинное описание). reDTF показывает такую ошибку как «описание слишком длинное».
+  /v2.1/ignores/subsites:
+    get:
+      tags: [Профили]
+      operationId: getIgnoredSubsites
+      summary: Чёрный список (пользователи и темы)
+      description: |
+        Все, кого вошедший скрыл, одним списком без пагинации. Это полные профили: у пользователя `type: 1`,
+        у темы `type: 2` и `subtype: community`; у темы есть `isMuted: true`.
+      x-status: verified
+      x-evidence: [har]
+      x-checked: '2026-11-03'
+      security: [{ JWTAuthorization: [] }]
+      responses:
+        '200':
+          description: Скрытые.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result:
+                    type: array
+                    items: { $ref: ./shared/schemas.yaml#/Subsite }
+        '401': { $ref: ./shared/security.yaml#/Unauthorized }
+  /v2.1/subsite/mute:
+    post:
+      tags: [Профили]
+      operationId: muteSubsite
+      summary: Скрыть пользователя или тему и вернуть обратно
+      description: |
+        Чёрный список. Один метод для пользователей и тем. `result.success` ненадёжен: при скрытии темы
+        приходило `false`, хотя она попала в список, поэтому смотрите на код ответа.
+      x-status: verified
+      x-evidence: [har]
+      x-checked: '2026-11-03'
+      security: [{ JWTAuthorization: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [id, action]
+              properties:
+                id: { type: integer, description: id пользователя или темы. }
+                action: { type: string, enum: [mute, unmute] }
+      responses:
+        '200':
+          description: Готово.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result:
+                    type: object
+                    properties:
+                      success: { type: boolean }
+        '401': { $ref: ./shared/security.yaml#/Unauthorized }
   /v2.31/subsite/subscribers:
     get:
       tags: [Профили]

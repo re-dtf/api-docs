@@ -7,7 +7,7 @@ servers:
   - url: https://api.dtf.ru
 tags:
   - name: Уведомления
-    description: Уведомления пользователя.
+    description: Уведомления пользователя и их настройки.
 paths:
   /v2.1/subsite/me/updates:
     get:
@@ -75,6 +75,124 @@ paths:
                     properties:
                       result: { type: boolean }
         '401': { $ref: ./shared/security.yaml#/Unauthorized }
+  /v2.1/user/notifications/settings:
+    get:
+      tags: [Уведомления]
+      operationId: getNotificationSettings
+      summary: Настройки уведомлений
+      description: |
+        Три канала: `email` (письма), `internal` (колокольчик), `push`. У каждого пункта `key` вида
+        `<канал>_<событие>`, русский `title` и `enabled`. Набор пунктов задаёт сервер.
+      x-status: verified
+      x-evidence: [har]
+      x-checked: '2026-11-03'
+      security: [{ JWTAuthorization: [] }]
+      responses:
+        '200':
+          description: Каналы с пунктами.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NotificationSettings' }
+        '401': { $ref: ./shared/security.yaml#/Unauthorized }
+    post:
+      tags: [Уведомления]
+      operationId: setNotificationSettings
+      summary: Изменить настройки уведомлений
+      description: |
+        Поля `settings[<key>]` со значением `true` или `false`: можно один пункт, можно сразу все пункты
+        канала («включить все»). В ответе все настройки уже с новыми значениями.
+      x-status: verified
+      x-evidence: [har]
+      x-checked: '2026-11-03'
+      security: [{ JWTAuthorization: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              description: Ключи вида `settings[email_comment_reply]`.
+              additionalProperties: { type: boolean }
+      responses:
+        '200':
+          description: Настройки после изменения.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NotificationSettings' }
+        '401': { $ref: ./shared/security.yaml#/Unauthorized }
+  /v2.1/user/notifications/push/subscribe:
+    post:
+      tags: [Уведомления]
+      operationId: subscribePush
+      summary: Привязать браузер для push
+      description: |
+        Web Push: поля `subscription[endpoint]`, `subscription[keys][p256dh]`, `subscription[keys][auth]` из
+        `PushSubscription` браузера. Подписка работает только в том браузере и на том домене, где её создали
+        (у сайта свой service worker). reDTF её не использует.
+      x-status: verified
+      x-evidence: [har]
+      x-checked: '2026-11-03'
+      security: [{ JWTAuthorization: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: ['subscription[endpoint]', 'subscription[keys][p256dh]', 'subscription[keys][auth]']
+              properties:
+                'subscription[endpoint]': { type: string }
+                'subscription[keys][p256dh]': { type: string }
+                'subscription[keys][auth]': { type: string }
+      responses:
+        '200':
+          description: Готово, `result` — пустой массив.
+        '401': { $ref: ./shared/security.yaml#/Unauthorized }
+  /v2.1/user/notifications/push/unsubscribe:
+    post:
+      tags: [Уведомления]
+      operationId: unsubscribePush
+      summary: Отвязать браузер от push
+      x-status: verified
+      x-evidence: [har]
+      x-checked: '2026-11-03'
+      security: [{ JWTAuthorization: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [endpoint]
+              properties:
+                endpoint: { type: string, description: "Тот же `endpoint`, что был при подписке." }
+      responses:
+        '200':
+          description: Готово, `result` — пустой массив.
+        '401': { $ref: ./shared/security.yaml#/Unauthorized }
 components:
   securitySchemes:
     JWTAuthorization: { $ref: ./shared/security.yaml#/JWTAuthorization }
+  schemas:
+    NotificationSettings:
+      type: object
+      properties:
+        message: { type: string }
+        result:
+          type: object
+          properties:
+            channels:
+              type: array
+              items:
+                type: object
+                properties:
+                  key: { type: string, examples: [email] }
+                  title: { type: string }
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        key: { type: string, examples: [email_comment_reply] }
+                        title: { type: string }
+                        enabled: { type: boolean }

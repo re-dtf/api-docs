@@ -246,6 +246,44 @@ paths:
             application/json:
               schema: { $ref: ./shared/schemas.yaml#/FavoriteResponse }
         '401': { $ref: ./shared/security.yaml#/Unauthorized }
+  /v2.4/content/mute:
+    post:
+      tags: [Посты]
+      operationId: muteContent
+      summary: Скрыть пост и вернуть обратно
+      description: |
+        Сайт шлёт ещё откуда нажали (`ViewContext`); без этих полей не проверялось.
+        Список скрытых постов в `ignores/subsites` не входит: там только пользователи и темы.
+      x-status: verified
+      x-evidence: [har]
+      x-checked: '2026-11-03'
+      security: [{ JWTAuthorization: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              allOf:
+                - $ref: ./shared/schemas.yaml#/ViewContext
+                - type: object
+                  required: [id, action]
+                  properties:
+                    id: { type: integer, description: id поста. }
+                    action: { type: string, enum: [mute], description: "Возврат поста (`unmute`) в HAR не снят." }
+      responses:
+        '200':
+          description: Готово.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result:
+                    type: object
+                    properties:
+                      success: { type: boolean }
+        '401': { $ref: ./shared/security.yaml#/Unauthorized }
   /v2.4/content/complaint:
     post:
       tags: [Посты]

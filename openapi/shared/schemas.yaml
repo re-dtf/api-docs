@@ -147,7 +147,9 @@ Subsite:
         isAdult: { type: boolean }
         isBlurNsfw: { type: boolean }
         hideViewedPostsFromFeeds: { type: boolean }
-        defaultFeed: { type: integer }
+        defaultFeed:
+          type: [string, integer]
+          description: "Лента по умолчанию. В `GET /subsite` приходит именем (`popular`), в ответе `subsite/update` числом (`0`); на запись принимается имя."
         myFeedSorting: { type: string, examples: [new] }
         commentingPermissions:
           $ref: '#/SubsiteCommentingPermissions'
