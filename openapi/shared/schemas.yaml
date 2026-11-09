@@ -75,8 +75,19 @@ Media:
 Block:
   description: |
     Блок поста. Тип задаёт форму `data`. Видели в сохранённых черновиках: `text`, `header`, `media`,
-    `quote`, `delimiter`, `quiz`, `list`, `code`, `person`. В ленте встречаются ещё `game`, `osnovaEmbed`
-    и другие встраивания; редактор отдаёт список плагинов (см. `GET /v2.1/editor/0`).
+    `quote`, `delimiter`, `quiz`, `list`, `code`, `person`. В ленте и старых постах встречаются ещё `audio`,
+    `video`, `link`, `incut`, `warning`, `tweet`, `telegram`, `yamusic`, `spotify`, `game`, `osnovaEmbed`;
+    редактор отдаёт список плагинов (см. `GET /v2.1/editor/0`).
+
+    Формы `data` (по живым ответам):
+    - `audio`: `{ audio: { type: audio, data: { uuid, filename, size, audio_info: { duration, bitrate, channel, format, listens_count } } }, image: Media | null, title, hash }`.
+      Файл лежит на `https://leonardo.osnova.io/audio/{uuid}/{filename}` и отдаётся с Range.
+    - `quiz`: `{ hash, title, items: { <itemId>: <текст варианта> }, uid, tmp_hash, is_public, date_created }`.
+      Результаты и голосование идут по `hash` (см. `getQuizResults`, `voteQuiz`).
+    - `person`: `{ image: Media | null, title, description }`.
+    - `incut`: `{ text }`, `warning`: `{ title, text }`.
+    - `yamusic`, `spotify`: `{ <имя>: { type: universalbox, data: { service, box_data: { src, url, type } } } }`.
+    - `telegram`, `tweet`: данные поста лежат в `data.telegram.data.tg_data` и `data.tweet.data.tweet_data`.
   type: object
   required: [type, data]
   properties:
@@ -96,6 +107,36 @@ Block:
         items:
           - title: ''
             image: { type: image, data: { uuid: 00000000-0000-0000-0000-000000000000, width: 1920, height: 1080, size: 100000, type: jpg, color: 181012 } }
+
+QuizItemResult:
+  type: object
+  properties:
+    count: { type: integer }
+    total: { type: integer, description: "Всего голосов в опросе, одинаково у всех вариантов." }
+    percentage: { type: integer, description: "Округлённый процент, сумма может не дать 100." }
+    isWinner: { type: boolean }
+
+QuizResult:
+  type: object
+  properties:
+    items:
+      type: object
+      description: "Результаты по вариантам, ключ — id варианта из `quiz.data.items`. Для неизвестного `hash` приходит пустой массив `[]`."
+      additionalProperties: { $ref: '#/QuizItemResult' }
+    winner: { type: [string, 'null'], description: Id варианта-лидера. }
+    userVoted: { type: [string, 'null'], description: "Id варианта, за который проголосовал текущий пользователь. `null` — не голосовал или запрос без токена." }
+    randomVotedUsers:
+      type: [object, 'null']
+      description: "Несколько проголосовавших по вариантам (`itemId` → список). Приходит в ответе на голос, в результатах без токена `null`."
+      additionalProperties:
+        type: array
+        items:
+          type: object
+          properties:
+            id: { type: integer }
+            name: { type: string }
+            avatar_url: { type: string, description: uuid картинки в Leonardo. }
+            url: { type: string, format: uri }
 
 # ---------- Люди и подсайты ----------
 

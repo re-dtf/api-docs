@@ -197,6 +197,96 @@ paths:
                   result: { $ref: ./shared/schemas.yaml#/Reactions }
         '401': { $ref: ./shared/security.yaml#/Unauthorized }
         '403': { $ref: ./shared/security.yaml#/Forbidden }
+  /v2.1/quiz/{hash}/results:
+    get:
+      tags: [Посты]
+      operationId: getQuizResults
+      security: [{}, { JWTAuthorization: [] }]
+      summary: Результаты опроса
+      description: |
+        `hash` берут из блока `quiz` (`data.hash`). Без токена отвечает 200, `userVoted` и `randomVotedUsers` — `null`;
+        с токеном `userVoted` показывает выбор пользователя. Сайт запрашивает результаты, когда блок попадает в экран.
+        Версии `v2.2` и `v2.8` отвечают так же (проверено живым запросом).
+      x-status: verified
+      x-evidence: [app, probe]
+      x-checked: '2026-11-08'
+      parameters:
+        - { name: hash, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Результаты по вариантам.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result: { $ref: ./shared/schemas.yaml#/QuizResult }
+        '401': { $ref: ./shared/security.yaml#/Unauthorized }
+  /v2.1/quiz/{hash}/contentId/{id}/vote/{itemId}:
+    post:
+      tags: [Посты]
+      operationId: voteQuiz
+      summary: Проголосовать в опросе
+      description: |
+        Тело пустое (`multipart/form-data` без полей). `id` — id поста, в котором стоит блок. Отвечает актуальными
+        результатами: `userVoted` — выбранный вариант, `randomVotedUsers` — несколько проголосовавших. Перед POST идёт
+        OPTIONS (204). Чтобы сменить выбор, сайт показывает «Переголосовать» и сначала снимает голос (`revokeQuizVote`).
+      x-status: verified
+      x-evidence: [har]
+      x-checked: '2026-11-08'
+      security: [{ JWTAuthorization: [] }]
+      parameters:
+        - { name: hash, in: path, required: true, schema: { type: string } }
+        - { name: id, in: path, required: true, schema: { type: integer } }
+        - { name: itemId, in: path, required: true, schema: { type: string }, description: "Ключ из `quiz.data.items`." }
+      requestBody:
+        required: false
+        content:
+          multipart/form-data:
+            schema: { type: object }
+      responses:
+        '200':
+          description: Результаты после голоса.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result: { $ref: ./shared/schemas.yaml#/QuizResult }
+        '401': { $ref: ./shared/security.yaml#/Unauthorized }
+  /v2.1/quiz/{hash}/contentId/{id}/vote:
+    post:
+      tags: [Посты]
+      operationId: revokeQuizVote
+      summary: Снять голос в опросе
+      description: |
+        Тот же адрес, что у `voteQuiz`, но без `itemId`; тело пустое. В ответе `userVoted: null` и `randomVotedUsers: null`,
+        счётчики уже без этого голоса.
+      x-status: verified
+      x-evidence: [har]
+      x-checked: '2026-11-08'
+      security: [{ JWTAuthorization: [] }]
+      parameters:
+        - { name: hash, in: path, required: true, schema: { type: string } }
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: false
+        content:
+          multipart/form-data:
+            schema: { type: object }
+      responses:
+        '200':
+          description: Результаты после снятия голоса.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result: { $ref: ./shared/schemas.yaml#/QuizResult }
+        '401': { $ref: ./shared/security.yaml#/Unauthorized }
   /v2.1/favorite:
     post:
       tags: [Посты]
