@@ -7,6 +7,7 @@
 | Эндпоинт | Заметка |
 | --- | --- |
 | `GET /v2.31/feed`, `/v2.10/feed`, `/v2.1/feed` | курсор разный, см. `conventions.md` |
+| `GET /v2.10/recommendations` | рекомендации под постом, проверено 2026-11-09; постраничность `lastId` + `excludeIds` |
 | `GET /v2.31/news`, `/v2.31/news/min` | `news` — по порциям, `news/min` — пять штук массивом |
 | `GET /v2.31/timeline` | записи подсайта |
 | `GET /v2.31/subsite`, `/v2.7/subsite` | v2.31 в обёртке `{ role, subsite }`, v2.7 плоско |

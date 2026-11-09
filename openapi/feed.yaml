@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: DTF API — ленты, новости, поиск
-  version: 2026-11-02
+  version: 2026-11-09
   description: |
     Чтение работает без токена; с токеном в записях появляются личные поля (`isFavorited`,
     `commentsSeenCount`, свой голос в `likes`).
@@ -98,6 +98,70 @@ paths:
                     properties:
                       items: { type: array, items: { $ref: ./shared/schemas.yaml#/FeedItem } }
                       cursor: { type: string }
+        '4XX': { $ref: ./shared/security.yaml#/ClientError }
+  /v2.10/recommendations:
+    get:
+      tags: [Ленты]
+      operationId: getRecommendations
+      security: [{}, { JWTAuthorization: [] }]
+      summary: Рекомендации под постом
+      description: |
+        Лента рекомендаций, которую сайт DTF показывает после комментариев к посту. Работает без токена;
+        сайт ходит с токеном, и тогда выдача персональная.
+
+        **Постраничность.** Страница — 12 записей. Следующую страницу даёт только пара `lastId` +
+        `excludeIds` из прошлого ответа. `excludeIds` — непрозрачная base64-строка (около 44 символов,
+        меняется и растёт со страницами), содержит `+` и `/`, поэтому в запросе её нужно URL-кодировать.
+        Только `lastId` без `excludeIds` (как и запрос без обоих) сервер игнорирует и отдаёт первую
+        страницу заново. На трёх страницах подряд повторов записей не было; сам пост `contentId` в выдаче
+        не встречался.
+
+        Влияние `previousPage` на выдачу не проверялось: сайт шлёт `post`, и этого достаточно.
+      x-status: verified
+      x-evidence: [har, probe]
+      x-checked: '2026-11-09'
+      parameters:
+        - name: contentId
+          in: query
+          required: true
+          schema: { type: integer }
+          description: id поста, под которым показываются рекомендации.
+        - name: markdown
+          in: query
+          schema: { type: boolean }
+          description: "`false` — текст блоков без markdown-обработки (так шлёт сайт)."
+        - name: previousPage
+          in: query
+          schema: { type: string, examples: [post] }
+          description: Откуда пришли. Сайт шлёт `post`; влияние на выдачу не проверялось.
+        - name: lastId
+          in: query
+          schema: { type: string }
+          description: "`result.lastId` из прошлого ответа (строка); работает только вместе с `excludeIds`."
+        - name: excludeIds
+          in: query
+          schema: { type: string }
+          description: "`result.excludeIds` из прошлого ответа, URL-кодированная (в значении есть `+` и `/`)."
+      responses:
+        '200':
+          description: Страница рекомендаций.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result:
+                    type: object
+                    properties:
+                      items: { type: array, items: { $ref: '#/components/schemas/RecommendationItem' } }
+                      lastId:
+                        type: string
+                        description: "Строка, а не число (в отличие от `lastId` в `/v2.31/feed`)."
+                        examples: ['5397840']
+                      excludeIds:
+                        type: string
+                        description: Непрозрачная base64-строка, передаётся в следующий запрос как есть.
         '4XX': { $ref: ./shared/security.yaml#/ClientError }
   /v2.31/news:
     get:
@@ -218,6 +282,27 @@ paths:
 components:
   securitySchemes:
     JWTAuthorization: { $ref: ./shared/security.yaml#/JWTAuthorization }
+  schemas:
+    RecommendationItem:
+      description: |
+        Запись рекомендаций: `FeedItem`, у которого `meta` описана подробнее. В общей схеме `meta` — просто
+        объект; здесь у неё есть поля, которых в обычной ленте не видели.
+      allOf:
+        - $ref: ./shared/schemas.yaml#/FeedItem
+        - type: object
+          properties:
+            meta:
+              type: object
+              properties:
+                feedSegment:
+                  type: string
+                  description: Откуда в рекомендацию попала запись.
+                  examples: [rec, top24t2, ga24, my48]
+                slotType: { type: string, examples: [post] }
+                popularComment:
+                  description: Популярный комментарий к записи; может отсутствовать.
+                  allOf:
+                    - $ref: ./shared/schemas.yaml#/Comment
   parameters:
     lastId:
       name: lastId
