@@ -42,6 +42,46 @@ paths:
                   message: { type: string }
                   result: { $ref: ./shared/schemas.yaml#/Entry }
         '403': { $ref: ./shared/security.yaml#/Forbidden }
+  /v2.5/content/{id}/donations:
+    get:
+      tags: [Посты]
+      operationId: getContentDonations
+      summary: Список донатов за пост
+      description: |
+        Работает без входа. Веб-клиент DTF октября 2025 запрашивает `page=0&limit=100`.
+        Для следующей страницы передаёт `result.cursor` из предыдущего ответа. Если строк меньше `limit`,
+        клиент заканчивает загрузку, даже когда сервер возвращает курсор.
+      x-status: verified
+      x-evidence: [app, probe]
+      x-checked: '2026-11-13'
+      security: [{}, { JWTAuthorization: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+        - { name: page, in: query, schema: { type: integer }, example: 0 }
+        - { name: limit, in: query, schema: { type: integer }, example: 100 }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Донаты и курсор следующей страницы.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result:
+                    type: object
+                    properties:
+                      cursor: { type: [string, 'null'] }
+                      donations:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            amount: { type: number, description: Сумма в рублях. }
+                            user: { $ref: ./shared/schemas.yaml#/SubsiteShort }
+        '400':
+          description: Некорректные параметры, например `id=0`.
   /v2.4/content/etcControls:
     get:
       tags: [Посты]
