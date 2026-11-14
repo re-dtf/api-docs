@@ -459,6 +459,138 @@ paths:
                       invoice_id: { type: string }
                       sum: { type: string }
         '401': { $ref: ./shared/security.yaml#/Unauthorized }
+  /v2.51/search/comments:
+    get:
+      tags: [Комментарии]
+      operationId: searchComments
+      security: [{}, { JWTAuthorization: [] }]
+      summary: Поиск по комментариям (полные объекты)
+      description: |
+        Возвращает полные объекты комментариев (`items` по 12 штук на страницу) и фрагмент совпадения в `meta.highlight`
+        с тегами `<mark>`. Параметр `q` необязателен, если передан `author`. Пагинация — через `page` (начиная с 1);
+        `lastId` и `lastSortingValue` приходят в ответе, но при передаче в запрос сервером игнорируются.
+      x-status: verified
+      x-evidence: [probe]
+      x-checked: '2026-11-14'
+      parameters:
+        - { $ref: '#/components/parameters/commentSearchQ' }
+        - { $ref: '#/components/parameters/commentSearchSorting' }
+        - { $ref: '#/components/parameters/commentSearchStrict' }
+        - { $ref: '#/components/parameters/commentSearchAuthor' }
+        - { $ref: '#/components/parameters/commentSearchPage' }
+      responses:
+        '200':
+          description: Найденные комментарии.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result:
+                    type: object
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            type: { type: string, enum: [comment] }
+                            data: { $ref: ./shared/schemas.yaml#/Comment }
+                            meta:
+                              type: object
+                              properties:
+                                highlight: { type: string }
+                      lastId: { type: integer }
+                      lastSortingValue: { type: number }
+                      total: { type: integer }
+        '4XX': { $ref: ./shared/security.yaml#/ClientError }
+  /v2.31/search/comments:
+    get:
+      tags: [Комментарии]
+      operationId: searchCommentsV231
+      security: [{}, { JWTAuthorization: [] }]
+      summary: Поиск по комментариям (короткий формат v2.31)
+      description: |
+        Принимает те же параметры, что и `/v2.51/search/comments`, но возвращает только `total` и массив `matches`
+        с `id` комментария и `highlight`.
+      x-status: verified
+      x-evidence: [probe]
+      x-checked: '2026-11-14'
+      parameters:
+        - { $ref: '#/components/parameters/commentSearchQ' }
+        - { $ref: '#/components/parameters/commentSearchSorting' }
+        - { $ref: '#/components/parameters/commentSearchStrict' }
+        - { $ref: '#/components/parameters/commentSearchAuthor' }
+        - { $ref: '#/components/parameters/commentSearchPage' }
+      responses:
+        '200': { $ref: '#/components/responses/CommentSearchMatches' }
+        '4XX': { $ref: ./shared/security.yaml#/ClientError }
+  /v2.10/search/comments:
+    get:
+      tags: [Комментарии]
+      operationId: searchCommentsV210
+      security: [{}, { JWTAuthorization: [] }]
+      summary: Поиск по комментариям (короткий формат v2.10)
+      description: |
+        Ответ и параметры совпадают с `/v2.31/search/comments`: возвращает `total` и `matches` (`id`, `highlight`).
+      x-status: verified
+      x-evidence: [probe]
+      x-checked: '2026-11-14'
+      parameters:
+        - { $ref: '#/components/parameters/commentSearchQ' }
+        - { $ref: '#/components/parameters/commentSearchSorting' }
+        - { $ref: '#/components/parameters/commentSearchStrict' }
+        - { $ref: '#/components/parameters/commentSearchAuthor' }
+        - { $ref: '#/components/parameters/commentSearchPage' }
+      responses:
+        '200': { $ref: '#/components/responses/CommentSearchMatches' }
+        '4XX': { $ref: ./shared/security.yaml#/ClientError }
 components:
   securitySchemes:
     JWTAuthorization: { $ref: ./shared/security.yaml#/JWTAuthorization }
+  parameters:
+    commentSearchQ:
+      name: q
+      in: query
+      schema: { type: string }
+      description: Поисковый запрос; необязателен при указании `author`.
+    commentSearchSorting:
+      name: sorting
+      in: query
+      schema: { type: string, enum: [relevance, date], default: relevance }
+    commentSearchStrict:
+      name: strict
+      in: query
+      schema: { type: boolean }
+      description: Точное совпадение (в живой проверке работает и `1`).
+    commentSearchAuthor:
+      name: author
+      in: query
+      schema: { type: integer }
+      description: ID автора комментариев.
+    commentSearchPage:
+      name: page
+      in: query
+      schema: { type: integer, minimum: 1, default: 1 }
+      description: Номер страницы (с 1, по 12 результатов).
+  responses:
+    CommentSearchMatches:
+      description: Совпадения в комментариях.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message: { type: string }
+              result:
+                type: object
+                properties:
+                  total: { type: integer }
+                  matches:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: integer }
+                        highlight: { type: string }
