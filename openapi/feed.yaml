@@ -248,6 +248,75 @@ paths:
                       lastId: { type: integer }
                       lastSortingValue: { type: number }
         '4XX': { $ref: ./shared/security.yaml#/ClientError }
+  /v2.10/search/posts:
+    get:
+      tags: [Ленты]
+      operationId: searchPosts
+      security: [{}, { JWTAuthorization: [] }]
+      summary: Поиск по записям
+      description: |
+        Поиск записей с фильтрами (`title`, `editorial`, `strict`, `author`). Параметр `q` необязателен при указании
+        `author`. У каждого элемента ответа приходит `meta.highlight` с тегами `<mark>` (начинается с заголовка записи,
+        дальше без разделителя идёт текст). Постраничность — через `lastId` и `lastSortingValue`.
+      x-status: verified
+      x-evidence: [app, probe]
+      x-checked: '2026-11-14'
+      parameters:
+        - name: q
+          in: query
+          schema: { type: string }
+          description: Поисковый запрос; необязателен при указании `author`.
+        - name: sorting
+          in: query
+          schema: { type: string, enum: [relevance, date], default: relevance }
+        - name: title
+          in: query
+          schema: { type: boolean }
+          description: Искать только в заголовках.
+        - name: editorial
+          in: query
+          schema: { type: boolean }
+          description: Только материалы редакции.
+        - name: strict
+          in: query
+          schema: { type: boolean }
+          description: Точное совпадение.
+        - name: author
+          in: query
+          schema: { type: integer }
+          description: ID автора записей.
+        - name: markdown
+          in: query
+          schema: { type: boolean, default: false }
+        - { $ref: '#/components/parameters/lastId' }
+        - { $ref: '#/components/parameters/lastSortingValue' }
+      responses:
+        '200':
+          description: Найденные записи.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result:
+                    type: object
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          allOf:
+                            - $ref: ./shared/schemas.yaml#/FeedItem
+                            - type: object
+                              properties:
+                                meta:
+                                  type: object
+                                  properties:
+                                    highlight: { type: string }
+                      lastId: { type: integer }
+                      lastSortingValue: { type: number }
+                      total: { type: integer }
+        '4XX': { $ref: ./shared/security.yaml#/ClientError }
   /v2.31/search:
     get:
       tags: [Ленты]

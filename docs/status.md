@@ -15,6 +15,7 @@
 | `GET /v2.31/content`, `/v2.10/content` | |
 | `GET /v2.10/comments`, `/v2.31/comments` | на v2.31 только `items`, без `editor` и `lastVisit` |
 | `GET /v2.31/search` | |
+| `GET /v2.10/search/posts` | проверено 2026-11-14; фильтры `title`, `editorial`, `strict`, `author`, курсор `lastId` + `lastSortingValue` |
 | `GET /v2.51/search/comments`, `/v2.31/...`, `/v2.10/...` | проверено 2026-11-14; v2.51 отдаёт полные объекты, v2.31/v2.10 — `{ total, matches }`; пагинация `page` |
 | `GET /v2.31/rating` | отвечает `{ tabs, subsites }`, не изучался |
 | `wss://ws-sio.dtf.ru/socket.io` | WebSocket (Socket.IO), живые комментарии и лента, см. `realtime.md` |
