@@ -289,7 +289,9 @@ Entry:
         text: { type: string }
         reason: { type: string }
         until: { type: integer, description: "Unix-время конца блокировки." }
-    isCommentsEnabled: { type: boolean }
+    isCommentsEnabled:
+      type: boolean
+      description: "`false` у технических постов и записей без поддержки комментариев; `commentEditor.enabled` при этом может оставаться `true`, а `GET /v2.10/comments` отвечает 403 `COMMENT_NOT_FOUND`."
     isLikesEnabled: { type: boolean }
     isPublished: { type: boolean }
     isEditorial: { type: boolean }

@@ -22,9 +22,11 @@ paths:
         передаются через WebSocket, см. docs/realtime.md.
 
         Закрытый пост (чужой черновик) отвечает 403 «Хорошие новости, мы не забыли проверку на права доступа».
+        Пост без поддержки комментариев (`isCommentsEnabled: false` в `Entry`, например правила сайта или
+        часть вакансий) отвечает 403 `COMMENT_NOT_FOUND`.
       x-status: verified
       x-evidence: [app, har, probe]
-      x-checked: '2026-11-02'
+      x-checked: '2026-11-14'
       parameters:
         - name: contentId
           in: query
