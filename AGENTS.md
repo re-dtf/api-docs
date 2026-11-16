@@ -7,7 +7,6 @@
 1. Нужен метод API → откройте `openapi/<область>.yaml` (`auth`, `feed`, `posts`, `comments`, `subsites`, `notifications`, `editor`). Читайте один файл, а не все.
 2. Нужны вход, токены, CORS → [docs/auth.md](docs/auth.md).
 3. Нужны общие правила (версии, ошибки, пагинация) → [docs/conventions.md](docs/conventions.md).
-4. Сомневаетесь, жив ли метод → [docs/status.md](docs/status.md).
 
 ## Жёсткие правила
 
