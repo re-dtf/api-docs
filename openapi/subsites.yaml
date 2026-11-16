@@ -381,6 +381,42 @@ paths:
                       result: { type: boolean }
                       subscribe: { type: boolean }
         '401': { $ref: ./shared/security.yaml#/Unauthorized }
+  /v2.9/users/mentions:
+    get:
+      tags: [Профили]
+      operationId: searchMentions
+      summary: Поиск пользователей для упоминания в комментарии (`@`)
+      description: |
+        Подсказки тег-пикера в редакторе комментария. Принимает строку поиска `q` (вызов без `q` и с пустым `q=` отвечает так же).
+        Без `JWTAuthorization` сервер отвечает 200, но игнорирует `q` и возвращает только одного бота
+        (`ChatGPT Bot`). У части пользователей `nickname` равен `null`.
+      x-status: verified
+      x-evidence: [har, probe]
+      x-checked: '2026-11-16'
+      security: [{}, { JWTAuthorization: [] }]
+      parameters:
+        - { name: q, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Подходящие пользователи.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: integer }
+                        name: { type: string }
+                        nickname: { type: [string, 'null'] }
+                        avatar: { $ref: ./shared/schemas.yaml#/Media }
+                        badgeId: { type: [string, 'null'] }
+                        favoriteCollectible: { type: [object, 'null'] }
+        '4XX': { $ref: ./shared/security.yaml#/ClientError }
 components:
   securitySchemes:
     JWTAuthorization: { $ref: ./shared/security.yaml#/JWTAuthorization }
