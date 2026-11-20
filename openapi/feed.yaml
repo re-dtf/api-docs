@@ -217,10 +217,14 @@ paths:
       operationId: getTimeline
       security: [{}, { JWTAuthorization: [] }]
       summary: Записи подсайта или пользователя
-      description: Лента одного или нескольких подсайтов (вкладки профиля).
+      description: |
+        Лента одного или нескольких подсайтов (вкладки профиля).
+        Для тем и сообществ популярное — `sorting=hotness` (горячее за недавнее время).
+        В профилях людей (`type: 1`) параметр `sorting=hotness` возвращает обычную сортировку по дате;
+        для получения популярных постов пользователя за всё время используется `sorting=all`.
       x-status: verified
       x-evidence: [app, probe]
-      x-checked: '2026-11-02'
+      x-checked: '2026-11-18'
       parameters:
         - name: subsitesIds
           in: query
@@ -229,7 +233,8 @@ paths:
           description: id подсайта. Несколько значений через запятую не проверялось.
         - name: sorting
           in: query
-          schema: { type: string, enum: [date, hotness], default: date }
+          schema: { type: string, enum: [date, hotness, all], default: date }
+          description: "`date` — свежее, `hotness` — горячее (сообщества), `all` — популярное за всё время (профили людей)."
         - { $ref: '#/components/parameters/lastId' }
         - { $ref: '#/components/parameters/lastSortingValue' }
       responses:
