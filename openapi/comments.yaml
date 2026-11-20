@@ -349,8 +349,8 @@ paths:
         Меню гифок в редакторе комментария. В `andropov` лежит готовое вложение (формат из `addComment`),
         в `leonardoUuid` — uuid файла.
       x-status: verified
-      x-evidence: [har]
-      x-checked: '2026-11-02'
+      x-evidence: [har, probe]
+      x-checked: '2026-11-20'
       security: [{ JWTAuthorization: [] }]
       parameters:
         - { name: page, in: query, schema: { type: integer, default: 0 } }
@@ -372,6 +372,7 @@ paths:
                         items:
                           type: object
                           properties:
+                            userId: { type: integer }
                             leonardoUuid: { type: string }
                             tenorId: { type: [string, 'null'] }
                             dateLastUsedTimestamp: { type: integer }
@@ -380,6 +381,90 @@ paths:
                             andropov: { type: object }
                       cursor: { type: [string, 'null'] }
         '401': { $ref: ./shared/security.yaml#/Unauthorized }
+    post:
+      tags: [Комментарии]
+      operationId: addFavoriteGif
+      summary: Добавление гифки в избранное
+      description: |
+        Сохраняет гифку в избранное текущего пользователя.
+        Тело запроса передаётся как `application/x-www-form-urlencoded`.
+        Параметр `type` принимает `andropov` (для файлов Leonardo/Andropov) или `tenor`.
+        Для `andropov` поле `data` должно содержать JSON-строку объекта вложения (`type: "image"` и внутри `data` с `uuid`, `width`, `height`, `size` и `type: "gif"`). При пустом `data` сервер возвращает 400, при отсутствии размеров — 500.
+        Для `tenor` поле `data` передаётся пустой строкой (`""`).
+      x-status: verified
+      x-evidence: [app, probe]
+      x-checked: '2026-11-20'
+      security: [{ JWTAuthorization: [] }]
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [type, id, data]
+              properties:
+                type:
+                  type: string
+                  enum: [andropov, tenor]
+                  description: Источник гифки (andropov или tenor).
+                id:
+                  type: string
+                  description: UUID файла на Leonardo или ID в Tenor.
+                data:
+                  type: string
+                  description: Для andropov — сериализованный JSON объекта вложения Andropov с размерами. Для tenor — пустая строка.
+      responses:
+        '200':
+          description: Гифка добавлена в избранное.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result:
+                    type: object
+                    properties:
+                      userId: { type: integer }
+                      leonardoUuid: { type: string }
+                      tenorId: { type: [string, 'null'] }
+                      dateLastUsedTimestamp: { type: integer }
+                      width: { type: integer }
+                      height: { type: integer }
+                      andropov: { type: object }
+        '400': { $ref: ./shared/security.yaml#/ClientError }
+        '401': { $ref: ./shared/security.yaml#/Unauthorized }
+  /v2.9/favorite-gifs/{uuid}:
+    delete:
+      tags: [Комментарии]
+      operationId: removeFavoriteGif
+      summary: Удаление гифки из избранного
+      description: |
+        Удаляет гифку из избранного текущего пользователя по её `leonardoUuid` (или `uuid`).
+        При успехе возвращает статус 200 с пустым объектом `result`.
+        Если гифки с указанным UUID нет в избранном, сервер возвращает 404.
+      x-status: verified
+      x-evidence: [app, probe]
+      x-checked: '2026-11-20'
+      security: [{ JWTAuthorization: [] }]
+      parameters:
+        - name: uuid
+          in: path
+          required: true
+          schema: { type: string }
+          description: UUID файла гифки (`leonardoUuid`).
+      responses:
+        '200':
+          description: Гифка успешно удалена из избранного.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result: { type: object }
+        '401': { $ref: ./shared/security.yaml#/Unauthorized }
+        '404': { $ref: ./shared/security.yaml#/ClientError }
   /v2.1/gifs/search:
     get:
       tags: [Комментарии]
