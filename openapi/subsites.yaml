@@ -13,6 +13,34 @@ tags:
   - name: Профили
     description: Профили, подписки, биография, настройки профиля, чёрный список.
 paths:
+  /v2.7/discovery/topics:
+    get:
+      tags: [Профили]
+      operationId: getDiscoveryTopics
+      security: []
+      summary: Каталог тем
+      description: |
+        Публичный список тем для страницы «Темы» (`/discovery/topics`). Элементы содержат данные подсайта в `data`.
+        Запрос без токена с origin веб-версии reDTF прошёл проверку CORS.
+      x-status: verified
+      x-evidence: [probe]
+      x-checked: '2026-11-19'
+      responses:
+        '200':
+          description: Список тем.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  result:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        data: { $ref: ./shared/schemas.yaml#/SubsiteShort }
+        '4XX': { $ref: ./shared/security.yaml#/ClientError }
   /v2.31/subsite:
     get:
       tags: [Профили]
